@@ -1,6 +1,7 @@
 package qqwife
 
 import (
+	"errors"
 	"strconv"
 	"sync"
 	"time"
@@ -14,8 +15,8 @@ import (
 	"github.com/Coloured-glaze/gg"
 )
 
-//nolint: asciicheck
 // nolint: asciicheck
+//nolint: asciicheck
 type 婚姻登记 struct {
 	db   *sql.Sqlite
 	dbmu sync.RWMutex
@@ -35,6 +36,8 @@ type userinfo struct {
 type updateinfo struct {
 	GID        int64
 	Updatetime string // 登记时间
+	CanMatch   bool   //订婚开关
+	CanNtr     bool   //Ntr技能开关
 
 }
 
@@ -77,6 +80,61 @@ func (sql *婚姻登记) 开门时间(gid int64) (ok bool, err error) {
 	if err == nil {
 		ok = true
 	}
+	return
+}
+
+func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr bool, err error) {
+	sql.dbmu.Lock()
+	defer sql.dbmu.Unlock()
+	err = sql.db.Create("updateinfo", &updateinfo{})
+	if err != nil {
+		return
+	}
+	gidstr := strconv.FormatInt(gid, 10)
+	dbinfo := updateinfo{}
+	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
+	if err != nil {
+		CanMatch = true
+		CanNtr = true
+		err = sql.db.Insert("updateinfo", &updateinfo{
+			GID:      gid,
+			CanMatch: CanMatch,
+			CanNtr:   CanNtr,
+		})
+		return
+	}
+	CanMatch = dbinfo.CanMatch
+	CanNtr = dbinfo.CanNtr
+	return
+}
+
+func (sql *婚姻登记) 修改模式(gid int64, mode string, stauts bool) (err error) {
+	sql.dbmu.Lock()
+	defer sql.dbmu.Unlock()
+	err = sql.db.Create("updateinfo", &updateinfo{})
+	if err != nil {
+		if err = sql.db.Drop("updateinfo"); err == nil {
+			err = sql.db.Create("updateinfo", &updateinfo{})
+		}
+		return
+	}
+	gidstr := strconv.FormatInt(gid, 10)
+	dbinfo := updateinfo{}
+	switch mode {
+	case "自由恋爱":
+		dbinfo.CanMatch = stauts
+	case "牛头人":
+		dbinfo.CanNtr = stauts
+	default:
+		return errors.New("错误:修改内容不匹配！")
+	}
+	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
+	if err != nil {
+		dbinfo.GID = gid
+		err = sql.db.Insert("updateinfo", &dbinfo)
+		return
+	}
+	err = sql.db.Insert("updateinfo", &dbinfo)
 	return
 }
 
@@ -241,6 +299,16 @@ func iscding2(ctx *zero.Ctx) {
 
 // 注入判断 是否为单身
 func checkdog(ctx *zero.Ctx) bool {
+	gid := ctx.Event.GroupID
+	stauts, _, err := 民政局.营业模式(gid)
+	if err != nil {
+		ctx.SendChain(message.Text("[qqwife]", err))
+		return false
+	}
+	if !stauts {
+		ctx.SendChain(message.Text("你群包分配,别在娶妻上面下功夫，好好水群"))
+		return false
+	}
 	// 得先判断用户是否存在才行在，再重置
 	fiancee, err := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
 	if err != nil {
@@ -248,10 +316,9 @@ func checkdog(ctx *zero.Ctx) bool {
 		return false
 	}
 	// 判断是否需要重置
-	gid := ctx.Event.GroupID
 	ok, err := 民政局.开门时间(gid)
 	if err != nil {
-		ctx.SendChain(message.Text("群状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]群状态查询失败\n", err))
 		return false
 	}
 	if ok {
@@ -262,7 +329,7 @@ func checkdog(ctx *zero.Ctx) bool {
 	uidtarget, uidstatus, err := 民政局.查户口(gid, uid)
 	switch {
 	case uidstatus == "错":
-		ctx.SendChain(message.Text("用户状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]用户状态查询失败\n", err))
 		return false
 	case uidstatus != "单" && (uidtarget.Target == 0 || uidtarget.User == 0): // 如果是单身贵族
 		ctx.SendChain(message.Text("今天的你是单身贵族噢"))
@@ -281,7 +348,7 @@ func checkdog(ctx *zero.Ctx) bool {
 	fianceeinfo, fianceestatus, err := 民政局.查户口(gid, fiancee)
 	switch {
 	case fianceestatus == "错":
-		ctx.SendChain(message.Text("对象状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]对象状态查询失败\n", err))
 	case fianceestatus == "单": // 如果为单身狗
 		return true
 	case fianceestatus != "单" && (fianceeinfo.Target == 0 || fianceeinfo.User == 0): // 如果是单身贵族
@@ -296,6 +363,16 @@ func checkdog(ctx *zero.Ctx) bool {
 
 // 注入判断 是否满足小三要求
 func checkcp(ctx *zero.Ctx) bool {
+	gid := ctx.Event.GroupID
+	_, stauts, err := 民政局.营业模式(gid)
+	if err != nil {
+		ctx.SendChain(message.Text("[qqwife]", err))
+		return false
+	}
+	if !stauts {
+		ctx.SendChain(message.Text("你群发布了牛头人禁止令，放弃吧"))
+		return false
+	}
 	// 得先判断用户是否存在才行在，再重置
 	fiancee, err := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
 	if err != nil {
@@ -303,10 +380,9 @@ func checkcp(ctx *zero.Ctx) bool {
 		return false
 	}
 	// 判断是否需要重置
-	gid := ctx.Event.GroupID
 	ok, err := 民政局.开门时间(gid)
 	if err != nil {
-		ctx.SendChain(message.Text("群状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]群状态查询失败\n", err))
 		return false
 	}
 	if ok {
@@ -317,7 +393,7 @@ func checkcp(ctx *zero.Ctx) bool {
 	fianceeinfo, fianceestatus, err := 民政局.查户口(gid, fiancee)
 	switch {
 	case fianceestatus == "错":
-		ctx.SendChain(message.Text("对象状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]对象状态查询失败\n", err))
 		return false
 	case fianceestatus == "单": // 如果为单身狗
 		if fiancee == uid {
@@ -337,7 +413,7 @@ func checkcp(ctx *zero.Ctx) bool {
 	uidtarget, uidstatus, err := 民政局.查户口(gid, uid)
 	switch {
 	case uidstatus == "错":
-		ctx.SendChain(message.Text("用户状态查询失败\n[error]", err))
+		ctx.SendChain(message.Text("[qqwife]用户状态查询失败\n", err))
 	case uidstatus == "单": // 如果为单身狗
 		return true
 	case uidstatus != "单" && (uidtarget.Target == 0 || uidtarget.User == 0): // 如果是单身贵族

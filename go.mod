@@ -10,6 +10,7 @@ require (
 	github.com/FloatTech/ttl v0.0.0-20220715042055-15612be72f5b
 	github.com/FloatTech/zbpctrl v1.4.1-0.20220715042842-93f081cb0133
 	github.com/FloatTech/zbputils v1.5.1-0.20220912115535-0bd7af2e70c6
+	github.com/PuerkitoBio/goquery v1.5.1
 	github.com/RomiChan/syncx v0.0.0-20220404072119-d7ea0ae15a4c
 	github.com/antchfx/htmlquery v1.2.5
 	github.com/corona10/goimagehash v1.0.3
@@ -38,6 +39,7 @@ require (
 
 require (
 	github.com/RomiChan/websocket v1.4.3-0.20220123145318-307a86b127bc // indirect
+	github.com/andybalholm/cascadia v1.1.0 // indirect
 	github.com/antchfx/xpath v1.2.1 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
