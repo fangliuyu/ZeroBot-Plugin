@@ -437,9 +437,9 @@ func init() {
 			status := ctx.State["regex_matched"].([]string)[1]
 			mode := ctx.State["regex_matched"].([]string)[2]
 			gid := ctx.Event.GroupID
-			statusBool := true
+			statusBool := 1
 			if status == "禁止" {
-				statusBool = false
+				statusBool = 0
 			}
 			err := 民政局.修改模式(gid, mode, statusBool)
 			if err != nil {

@@ -36,8 +36,8 @@ type userinfo struct {
 type updateinfo struct {
 	GID        int64
 	Updatetime string // 登记时间
-	CanMatch   bool   //订婚开关
-	CanNtr     bool   //Ntr技能开关
+	CanMatch   int    //订婚开关
+	CanNtr     int    //Ntr技能开关
 
 }
 
@@ -83,7 +83,7 @@ func (sql *婚姻登记) 开门时间(gid int64) (ok bool, err error) {
 	return
 }
 
-func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr bool, err error) {
+func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr int, err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	err = sql.db.Create("updateinfo", &updateinfo{})
@@ -94,8 +94,8 @@ func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr bool, err err
 	dbinfo := updateinfo{}
 	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
 	if err != nil {
-		CanMatch = true
-		CanNtr = true
+		CanMatch = 1
+		CanNtr = 1
 		err = sql.db.Insert("updateinfo", &updateinfo{
 			GID:      gid,
 			CanMatch: CanMatch,
@@ -108,7 +108,7 @@ func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr bool, err err
 	return
 }
 
-func (sql *婚姻登记) 修改模式(gid int64, mode string, stauts bool) (err error) {
+func (sql *婚姻登记) 修改模式(gid int64, mode string, stauts int) (err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	err = sql.db.Create("updateinfo", &updateinfo{})
@@ -305,7 +305,7 @@ func checkdog(ctx *zero.Ctx) bool {
 		ctx.SendChain(message.Text("[qqwife]", err))
 		return false
 	}
-	if !stauts {
+	if stauts == 0 {
 		ctx.SendChain(message.Text("你群包分配,别在娶妻上面下功夫，好好水群"))
 		return false
 	}
@@ -369,7 +369,7 @@ func checkcp(ctx *zero.Ctx) bool {
 		ctx.SendChain(message.Text("[qqwife]", err))
 		return false
 	}
-	if !stauts {
+	if stauts == 0 {
 		ctx.SendChain(message.Text("你群发布了牛头人禁止令，放弃吧"))
 		return false
 	}
