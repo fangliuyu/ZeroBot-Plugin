@@ -58,6 +58,8 @@ func (sql *婚姻登记) 开门时间(gid int64) (ok bool, err error) {
 		err = sql.db.Insert("updateinfo", &updateinfo{
 			GID:        gid,
 			Updatetime: time.Now().Format("2006/01/02"),
+			CanMatch:   1,
+			CanNtr:     1,
 		})
 		if err == nil {
 			ok = true
@@ -97,9 +99,10 @@ func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr int, err erro
 		CanMatch = 1
 		CanNtr = 1
 		err = sql.db.Insert("updateinfo", &updateinfo{
-			GID:      gid,
-			CanMatch: CanMatch,
-			CanNtr:   CanNtr,
+			GID:        gid,
+			Updatetime: time.Now().Format("2006/01/02"),
+			CanMatch:   CanMatch,
+			CanNtr:     CanNtr,
 		})
 		return
 	}
@@ -120,6 +123,7 @@ func (sql *婚姻登记) 修改模式(gid int64, mode string, stauts int) (err e
 	}
 	gidstr := strconv.FormatInt(gid, 10)
 	dbinfo := updateinfo{}
+	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
 	switch mode {
 	case "自由恋爱":
 		dbinfo.CanMatch = stauts
@@ -128,9 +132,9 @@ func (sql *婚姻登记) 修改模式(gid int64, mode string, stauts int) (err e
 	default:
 		return errors.New("错误:修改内容不匹配！")
 	}
-	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
 	if err != nil {
 		dbinfo.GID = gid
+		dbinfo.Updatetime = time.Now().Format("2006/01/02")
 		err = sql.db.Insert("updateinfo", &dbinfo)
 		return
 	}
