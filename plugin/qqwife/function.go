@@ -41,6 +41,12 @@ type updateinfo struct {
 
 }
 
+// 好感度系统
+type Favorability struct {
+	Userinfo string // 记录用户
+	Favor    int    // 好感度
+}
+
 func (sql *婚姻登记) 开门时间(gid int64) (ok bool, err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
@@ -279,6 +285,58 @@ func slicename(name string, canvas *gg.Context) (resultname string) {
 		resultname = name
 	}
 	return
+}
+
+//获取好感度
+func (sql *婚姻登记) getFavorability(uid, target int64) (Favor int, err error) {
+	sql.dbmu.Lock()
+	defer sql.dbmu.Unlock()
+	err = sql.db.Create("Favorability", &Favorability{})
+	if err != nil {
+		return
+	}
+	info := Favorability{}
+	uidstr := strconv.FormatInt(uid, 10)
+	targstr := strconv.FormatInt(target, 10)
+	err = sql.db.Find("Favorability", &info, "where Userinfo glob '*"+uidstr+"+"+targstr+"*'")
+	if err != nil {
+		err = sql.db.Insert("Favorability", &Favorability{
+			Userinfo: uidstr + "+" + targstr + "+" + uidstr,
+			Favor:    0,
+		})
+		return
+	}
+	Favor = info.Favor
+	return
+}
+
+//设置好感度 正增负减
+func (sql *婚姻登记) setFavorability(uid, target int64, score int) (Favor int, err error) {
+	sql.dbmu.Lock()
+	defer sql.dbmu.Unlock()
+	err = sql.db.Create("Favorability", &Favorability{})
+	if err != nil {
+		return
+	}
+	info := Favorability{}
+	uidstr := strconv.FormatInt(uid, 10)
+	targstr := strconv.FormatInt(target, 10)
+	err = sql.db.Find("Favorability", &info, "where Userinfo glob '*"+uidstr+"+"+targstr+"*'")
+	if err != nil {
+		err = sql.db.Insert("Favorability", &Favorability{
+			Userinfo: uidstr + "+" + targstr + "+" + uidstr,
+			Favor:    score,
+		})
+		return score, err
+	}
+	info.Favor += score
+	if info.Favor > 100 {
+		info.Favor = 100
+	} else if info.Favor < 0 {
+		info.Favor = 0
+	}
+	err = sql.db.Insert("Favorability", &info)
+	return info.Favor, err
 }
 
 // 以群号和昵称为限制

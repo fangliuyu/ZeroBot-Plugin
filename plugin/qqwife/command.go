@@ -66,7 +66,7 @@ func init() {
 		Help: "一群一天一夫一妻制群老婆\n（每天凌晨刷新CP）\n" +
 			"- 娶群友\n- 群老婆列表\n- 允许/禁止自由恋爱\n- 允许/禁止牛头人\n- 重置花名册\n" +
 			"--------------------------------\n以下指令存在CD,不跨天刷新,前两个受指令开关\n--------------------------------\n" +
-			"- (娶|嫁)@对方QQ\n自由选择对象，自由恋爱(50%成功率)\n- 当[对方Q号|@对方QQ]的小三\n凭什么你是别人的！给我牛过来(30%成功率)\n- 闹离婚\n你谁啊，给我滚(10%成功率)",
+			"- (娶|嫁)@对方QQ\n自由选择对象，自由恋爱(好感度越高成功率越高)\n- 当[对方Q号|@对方QQ]的小三\n我和你才是真爱，为了你我愿意付出一切(好感度越高成功率越高)\n- 闹离婚\n你谁啊，给我滚(好感度越高成功率越低)",
 	}).ApplySingle(single.New(
 		single.WithKeyFn(func(ctx *zero.Ctx) int64 { return ctx.Event.GroupID }),
 		single.WithPostFn[int64](func(ctx *zero.Ctx) {
@@ -162,6 +162,10 @@ func init() {
 				ctx.SendChain(message.Text("[qqwife]数据库发生问题力\n", err))
 				return
 			}
+			favor, err := 民政局.setFavorability(uid, fiancee, 1)
+			if err != nil {
+				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
+			}
 			// 请大家吃席
 			ctx.SendChain(
 				message.At(uid),
@@ -170,7 +174,7 @@ func init() {
 				message.Text(
 					"\n",
 					"[", ctx.CardOrNickName(fiancee), "]",
-					"(", fiancee, ")哒",
+					"(", fiancee, ")哒\n当前你们好感度为", favor,
 				),
 			)
 		})
@@ -195,7 +199,12 @@ func init() {
 				}
 				return
 			}
-			if rand.Intn(2) == 0 { // 二分之一的概率表白成功
+			favor, err := 民政局.getFavorability(uid, fiancee)
+			if err != nil {
+				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
+				return
+			}
+			if rand.Intn(102-favor) <= (102-favor)/2 {
 				ctx.SendChain(message.Text(sendtext[1][rand.Intn(len(sendtext[1]))]))
 				return
 			}
@@ -240,7 +249,12 @@ func init() {
 				ctx.SendChain(message.Text("今日获得成就：自我攻略"))
 				return
 			}
-			if rand.Intn(10)/4 != 0 { // 十分之三的概率NTR成功
+			favor, err := 民政局.getFavorability(uid, fiancee)
+			if err != nil {
+				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
+				return
+			}
+			if rand.Intn(102-favor) <= (102-favor)/3 {
 				ctx.SendChain(message.Text("失败了！可惜"))
 				return
 			}
@@ -282,6 +296,10 @@ func init() {
 				ctx.SendChain(message.Text("[qqwife]复婚登记失败力\n", err))
 				return
 			}
+			favor, err = 民政局.setFavorability(uid, fiancee, -5)
+			if err != nil {
+				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
+			}
 			// 输出结果
 			ctx.SendChain(
 				message.Text(sendtext[2][rand.Intn(len(sendtext[2]))]),
@@ -291,7 +309,7 @@ func init() {
 				message.Text(
 					"\n",
 					"[", ctx.CardOrNickName(fiancee), "]",
-					"(", fiancee, ")哒",
+					"(", fiancee, ")哒\n当前你们好感度为", favor,
 				),
 			)
 		})
@@ -376,24 +394,32 @@ func init() {
 			uid := ctx.Event.UserID
 			info, uidstatus, err := 民政局.查户口(gid, uid)
 			mun := 2
+			var fiancee int64
 			switch uidstatus {
 			case "错":
 				ctx.SendChain(message.Text("[qqwife]用户状态查询失败\n", err))
 				return
 			case "攻":
 				mun = 1
+				fiancee = info.Target
 			case "受":
 				mun = 0
+				fiancee = info.User
 			}
-			if rand.Intn(10) != 1 { // 十分之一的概率成功
+			favor, err := 民政局.getFavorability(uid, fiancee)
+			if err != nil {
+				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
+				return
+			}
+			if rand.Intn(2+favor) != 1 {
 				ctx.SendChain(message.Text(sendtext[3][rand.Intn(len(sendtext[3]))]))
 				return
 			}
 			switch mun {
 			case 1:
-				err = 民政局.离婚休妻(gid, info.Target)
+				err = 民政局.离婚休妻(gid, fiancee)
 			case 0:
-				err = 民政局.离婚休妻(gid, info.Target)
+				err = 民政局.离婚休夫(gid, fiancee)
 			default:
 				ctx.SendChain(message.Text("[qqwife]数据库发生问题力\n", err))
 				return
