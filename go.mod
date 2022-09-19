@@ -8,7 +8,8 @@ require (
 	github.com/FloatTech/floatbox v0.0.0-20220917062226-31fb3ec4b135
 	github.com/FloatTech/sqlite v0.3.3
 	github.com/FloatTech/ttl v0.0.0-20220715042055-15612be72f5b
-	github.com/PuerkitoBio/goquery v1.5.1
+	github.com/FloatTech/zbpctrl v1.5.2-0.20220919124954-6ab7f2656545
+	github.com/FloatTech/zbputils v1.5.1-0.20220919151529-ea4fc5c54947
 	github.com/RomiChan/syncx v0.0.0-20220404072119-d7ea0ae15a4c
 	github.com/antchfx/htmlquery v1.2.5
 	github.com/corona10/goimagehash v1.1.0
@@ -35,10 +36,7 @@ require (
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69
 )
 
-require (
-	github.com/FloatTech/zbpctrl v1.5.1
-	github.com/FloatTech/zbputils v1.5.1-0.20220917124747-de1640283316
-)
+require github.com/PuerkitoBio/goquery v1.5.1
 
 require (
 	github.com/RomiChan/websocket v1.4.3-0.20220123145318-307a86b127bc // indirect
