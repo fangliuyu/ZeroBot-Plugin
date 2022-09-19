@@ -28,13 +28,12 @@ import (
 	"github.com/FloatTech/zbputils/img/text"
 )
 
-//nolint: asciicheck
+// nolint: asciicheck
 // nolint: asciicheck
 var (
 	民政局 = &婚姻登记{
 		db: &sql.Sqlite{},
 	}
-	skillCD  = make(map[string]int64)
 	sendtext = [...][]string{
 		{ // 表白成功
 			"是个勇敢的孩子(*/ω＼*) 今天的运气都降临在你的身边~\n\n",
@@ -53,8 +52,8 @@ var (
 			"床头打架床尾和，夫妻没有隔夜仇。安啦安啦，不要闹变扭。",
 		},
 		{ // 离婚成功
-			"离婚成功力\n天涯何处无芳草，何必单恋一枝花？不如再摘一支（bushi",
 			"离婚成功力\n话说你不考虑当个1？",
+			"离婚成功力\n天涯何处无芳草，何必单恋一枝花？不如再摘一支（bushi",
 		},
 	}
 )
@@ -558,7 +557,7 @@ func init() {
 		Handle(func(ctx *zero.Ctx) {
 			gid := ctx.Event.GroupID
 			uid := ctx.Event.UserID
-			gayOne, _ := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
+			gayOne, _ := strconv.ParseInt(ctx.State["regex_matched"].([]string)[1], 10, 64)
 			gayZero, _ := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
 			favor, err := 民政局.getFavorability(gayOne, gayZero)
 			if err != nil {
