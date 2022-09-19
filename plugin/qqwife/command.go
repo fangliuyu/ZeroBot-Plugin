@@ -170,7 +170,7 @@ func init() {
 				ctx.SendChain(message.Text("[qqwife]数据库发生问题力\n", err))
 				return
 			}
-			favor, err := 民政局.setFavorability(uid, fiancee, 1)
+			favor, err := 民政局.setFavorability(uid, fiancee, 1+rand.Intn(5))
 			if err != nil {
 				ctx.SendChain(message.Text("[qqwife]好感度库发生问题力\n", err))
 			}
@@ -539,7 +539,7 @@ func init() {
 	// 技能CD设置
 	engine.OnRegex(`^设置CD为(\d+)小时`, zero.OnlyGroup, getdb).SetBlock(true).Limit(ctxext.LimitByUser).
 		Handle(func(ctx *zero.Ctx) {
-			cdTime, err := strconv.ParseFloat(ctx.State["regex_matched"].([]string)[1], 10)
+			cdTime, err := strconv.ParseFloat(ctx.State["regex_matched"].([]string)[1], 64)
 			if err != nil {
 				ctx.SendChain(message.Text("[qqwife]请设置纯数字\n", err))
 				return

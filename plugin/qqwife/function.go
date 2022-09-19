@@ -15,7 +15,7 @@ import (
 )
 
 // nolint: asciicheck
-//nolint: asciicheck
+// nolint: asciicheck
 type 婚姻登记 struct {
 	db   *sql.Sqlite
 	dbmu sync.RWMutex
@@ -677,7 +677,7 @@ func checkCondition(ctx *zero.Ctx) bool {
 		ctx.SendChain(message.At(uid), message.Text("[qqwife]你的技能CD记录失败\n", err))
 	}
 	// 得先判断用户是否存在才行在，再重置
-	gayOne, err := strconv.ParseInt(ctx.State["regex_matched"].([]string)[2], 10, 64)
+	gayOne, err := strconv.ParseInt(ctx.State["regex_matched"].([]string)[1], 10, 64)
 	if err != nil {
 		ctx.SendChain(message.Text("额，攻方好像不存在？"))
 		return false
