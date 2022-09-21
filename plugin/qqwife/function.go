@@ -47,7 +47,7 @@ type favorability struct {
 }
 
 // 技能CD记录表
-type CDsheet struct {
+type cdsheet struct {
 	Time    int64 // 时间
 	GroupID int64 // 群号
 	UserID  int64 // 用户
@@ -102,7 +102,7 @@ func (sql *婚姻登记) 开门时间(gid int64) (ok bool, err error) {
 	return
 }
 
-func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr int, err error) {
+func (sql *婚姻登记) 营业模式(gid int64) (canMatch, canNtr int, err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	err = sql.db.Create("updateinfo", &updateinfo{})
@@ -118,18 +118,18 @@ func (sql *婚姻登记) 营业模式(gid int64) (CanMatch, CanNtr int, err erro
 	dbinfo := updateinfo{}
 	err = sql.db.Find("updateinfo", &dbinfo, "where gid is "+gidstr)
 	if err != nil {
-		CanMatch = 1
-		CanNtr = 1
+		canMatch = 1
+		canNtr = 1
 		err = sql.db.Insert("updateinfo", &updateinfo{
 			GID:      gid,
-			CanMatch: CanMatch,
-			CanNtr:   CanNtr,
+			CanMatch: canMatch,
+			CanNtr:   canNtr,
 			CDtime:   12,
 		})
 		return
 	}
-	CanMatch = dbinfo.CanMatch
-	CanNtr = dbinfo.CanNtr
+	canMatch = dbinfo.CanMatch
+	canNtr = dbinfo.CanNtr
 	return
 }
 
@@ -312,7 +312,7 @@ func slicename(name string, canvas *gg.Context) (resultname string) {
 }
 
 // 获取好感度
-func (sql *婚姻登记) getFavorability(uid, target int64) (Favor int, err error) {
+func (sql *婚姻登记) getFavorability(uid, target int64) (favor int, err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	err = sql.db.Create("favorability", &favorability{})
@@ -330,12 +330,12 @@ func (sql *婚姻登记) getFavorability(uid, target int64) (Favor int, err erro
 		})
 		return
 	}
-	Favor = info.Favor
+	favor = info.Favor
 	return
 }
 
 // 设置好感度 正增负减
-func (sql *婚姻登记) setFavorability(uid, target int64, score int) (Favor int, err error) {
+func (sql *婚姻登记) setFavorability(uid, target int64, score int) (favor int, err error) {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	err = sql.db.Create("favorability", &favorability{})
@@ -428,16 +428,16 @@ func (sql *婚姻登记) setCDtime(gid int64, cdTime float64) (err error) {
 func (sql *婚姻登记) writeCDtime(gid, uid, mun int64) error {
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
-	err := sql.db.Create("cdsheet", &CDsheet{})
+	err := sql.db.Create("cdsheet", &cdsheet{})
 	if err != nil {
 		if err = sql.db.Drop("cdsheet"); err == nil {
-			err = sql.db.Create("cdsheet", &CDsheet{})
+			err = sql.db.Create("cdsheet", &cdsheet{})
 		}
 		if err != nil {
 			return err
 		}
 	}
-	err = sql.db.Insert("cdsheet", &CDsheet{
+	err = sql.db.Insert("cdsheet", &cdsheet{
 		Time:    time.Now().Unix(),
 		GroupID: gid,
 		UserID:  uid,
@@ -451,10 +451,10 @@ func (sql *婚姻登记) compareCDtime(gid, uid, mun int64, cdtime float64) (ok 
 	sql.dbmu.Lock()
 	defer sql.dbmu.Unlock()
 	ok = false
-	err = sql.db.Create("cdsheet", &CDsheet{})
+	err = sql.db.Create("cdsheet", &cdsheet{})
 	if err != nil {
 		if err = sql.db.Drop("cdsheet"); err == nil {
-			err = sql.db.Create("cdsheet", &CDsheet{})
+			err = sql.db.Create("cdsheet", &cdsheet{})
 		}
 		if err != nil {
 			return
@@ -467,7 +467,7 @@ func (sql *婚姻登记) compareCDtime(gid, uid, mun int64, cdtime float64) (ok 
 	if !exist {
 		return true, nil
 	}
-	cdinfo := CDsheet{}
+	cdinfo := cdsheet{}
 	err = sql.db.Find("cdsheet", &cdinfo, limitID)
 	if err != nil {
 		return
@@ -652,7 +652,44 @@ func checkcp(ctx *zero.Ctx) bool {
 	return false
 }
 
-// 注入判断 是否满足小三要求
+// 注入判断 是否满足离婚要求
+func checkdivorce(ctx *zero.Ctx) bool {
+	mode := int64(3) // 指代技能3
+	gid := ctx.Event.GroupID
+	uid := ctx.Event.UserID
+	// 获取CD
+	cdTime, err := 民政局.getCDtime(gid)
+	if err != nil {
+		ctx.SendChain(message.Text("[qqwife]获取该群技能CD错误(将以CD12H计算)\n", err))
+	}
+	ok, err := 民政局.compareCDtime(gid, uid, mode, cdTime)
+	if err != nil {
+		ctx.SendChain(message.Text("[qqwife]查询用户CD状态失败,请重试\n", err))
+		return false
+	}
+	if !ok {
+		ctx.SendChain(message.Text("你的技能还在CD中..."))
+		return false
+	}
+	// 写入CD
+	err = 民政局.writeCDtime(gid, uid, mode)
+	if err != nil {
+		ctx.SendChain(message.At(uid), message.Text("[qqwife]你的技能CD记录失败\n", err))
+	}
+	// 判断是否符合条件
+	_, uidstatus, err := 民政局.查户口(gid, uid)
+	switch uidstatus {
+	case "错":
+		ctx.SendChain(message.Text("[qqwife]数据库发生问题力\n", err))
+		return false
+	case "单":
+		ctx.SendChain(message.Text("今天你还没结婚哦"))
+		return false
+	}
+	return true
+}
+
+// 注入判断 是否满足做媒要求
 func checkCondition(ctx *zero.Ctx) bool {
 	mode := int64(4) // 指代技能4
 	gid := ctx.Event.GroupID

@@ -63,31 +63,30 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/ygosem"             // 游戏王进阶平台查卡器
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/ygotools"           // 游戏王开房工具
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ai_false"      // 服务器监控
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/baidu"         // 百度一下
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"      // b站相关
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/breakrepeat"   // 打断复读
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/epidemic"      // 城市疫情查询
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"           // 制图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github"        // 搜索GitHub仓库
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic"    // 猜歌
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/image_finder"  // 关键字搜图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/jikipedia"     // 小鸡词典
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/lolicon"       // lolicon 随机图片
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moegoe"        // 日韩 VITS 模型拟声
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyu_calendar" // 摸鱼人日历
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/music"         // 点歌
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nbnhhsh"       // 拼音首字母缩写释义工具
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife"        // 一群一天一夫一妻制群老婆
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/runcode"       // 在线运行代码
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/saucenao"      // 以图搜图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/setutime"      // 来份涩图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tracemoe"      // 搜番
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wordle"        // 猜单词
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ymgal"         // 月幕galgame
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/baidu"        // 百度一下
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"     // b站相关
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/breakrepeat"  // 打断复读
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/epidemic"     // 城市疫情查询
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"          // 制图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github"       // 搜索GitHub仓库
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic"   // 猜歌
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/image_finder" // 关键字搜图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/jikipedia"    // 小鸡词典
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/lolicon"      // lolicon 随机图片
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moegoe"       // 日韩 VITS 模型拟声
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/music"        // 点歌
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nbnhhsh"      // 拼音首字母缩写释义工具
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife"       // 一群一天一夫一妻制群老婆
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/runcode"      // 在线运行代码
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/saucenao"     // 以图搜图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/setutime"     // 来份涩图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tracemoe"     // 搜番
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wordle"       // 猜单词
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ymgal"        // 月幕galgame
 
 	/*
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ahsai"         // ahsai tts
+		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ai_false"      // 服务器监控
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/aiwife"        // 随机老婆
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/b14"           // base16384加解密
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/book_review"   // 哀伤雪刃吧推书记录
@@ -112,6 +111,7 @@ import (
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/juejuezi"      // 绝绝子生成器
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/midicreate"    // 简易midi音乐制作
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyu"          // 摸鱼
+		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyu_calendar" // 摸鱼人日历
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nativesetu"    // 本地涩图
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nativewife"    // 本地老婆
 		_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nihongo"       // 日语语法学习
@@ -222,8 +222,8 @@ func init() {
 	// 通过代码写死的方式添加主人账号
 	// sus = append(sus, 12345678)
 	// sus = append(sus, 87654321)
-	sus = append(sus, 1725453672)
 	sus = append(sus, 2504407110)
+	sus = append(sus, 1725453672)
 
 	if *runcfg != "" {
 		f, err := os.Open(*runcfg)

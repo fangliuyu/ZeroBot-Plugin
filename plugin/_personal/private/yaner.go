@@ -1,6 +1,8 @@
 package yaner
 
 import (
+	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"time"
@@ -13,6 +15,10 @@ import (
 	control "github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
 	"github.com/wdvxdr1123/ZeroBot/extension/rate"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 var (
@@ -26,6 +32,12 @@ func init() { // 插件主体
 		DisableOnDefault: false,
 		Help:             "我叫柳如娮，请多关照",
 		OnEnable: func(ctx *zero.Ctx) {
+			ctx.SendChain(message.Text(
+				"检测到唤醒环境:\n",
+				"* CPU占用: ", cpuPercent(), "%\n",
+				"* RAM占用: ", memPercent(), "%\n",
+				"* 硬盘使用: ", diskPercent(), "\n确认ok。\n",
+			))
 			process.SleepAbout1sTo2s()
 			ctx.SendChain(message.Text("嘿嘿，娮儿闪亮登场！锵↘锵↗~"))
 		},
@@ -34,13 +46,23 @@ func init() { // 插件主体
 			ctx.SendChain(message.Text("宝↗生↘永↗梦↘！！！！"))
 		},
 	})
+	// 电脑状态
+	engine.OnFullMatchGroup([]string{"检查身体", "自检", "启动自检", "系统状态"}, zero.AdminPermission).SetBlock(true).
+		Handle(func(ctx *zero.Ctx) {
+			ctx.SendChain(message.Text(
+				"* CPU占用: ", cpuPercent(), "%\n",
+				"* RAM占用: ", memPercent(), "%\n",
+				"* 硬盘使用: ", diskPercent(),
+			),
+			)
+		})
 	// 重启
 	engine.OnFullMatchGroup([]string{"重启", "restart", "kill", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			os.Exit(0)
 		})
 	// 运行 CQ 码
-	zero.OnPrefix("run", zero.SuperUserPermission).SetBlock(true).
+	zero.OnPrefix("run", zero.SuperUserPermission).SetBlock(false).
 		Handle(func(ctx *zero.Ctx) {
 			// 可注入，权限为主人
 			ctx.Send(message.UnescapeCQCodeText(ctx.State["args"].(string)))
@@ -58,6 +80,7 @@ func init() { // 插件主体
 				ctx.SendChain(message.Text("呜呜呜呜"))
 			}
 			ctx.DeleteMessage(message.NewMessageIDFromString(mid))
+			ctx.DeleteMessage(message.NewMessageIDFromInteger(ctx.Event.MessageID.(int64)))
 		})
 	// 被喊名字
 	engine.OnKeywordGroup([]string{"自我介绍", "你是谁", "你谁"}, zero.OnlyToMe).SetBlock(true).
@@ -171,4 +194,40 @@ func randText(text ...string) message.MessageSegment {
 
 func randImage(file ...string) message.MessageSegment {
 	return message.Image(res + file[rand.Intn(len(file))])
+}
+
+func cpuPercent() float64 {
+	percent, err := cpu.Percent(time.Second, false)
+	if err != nil {
+		return -1
+	}
+	return math.Round(percent[0])
+}
+
+func memPercent() float64 {
+	memInfo, err := mem.VirtualMemory()
+	if err != nil {
+		return -1
+	}
+	return math.Round(memInfo.UsedPercent)
+}
+
+func diskPercent() string {
+	parts, err := disk.Partitions(true)
+	if err != nil {
+		return err.Error()
+	}
+	msg := ""
+	for _, p := range parts {
+		diskInfo, err := disk.Usage(p.Mountpoint)
+		if err != nil {
+			msg += "\n  - " + err.Error()
+			continue
+		}
+		pc := uint(math.Round(diskInfo.UsedPercent))
+		if pc > 0 {
+			msg += fmt.Sprintf("\n  - %s(%dM) %d%%", p.Mountpoint, diskInfo.Total/1024/1024, pc)
+		}
+	}
+	return msg
 }
