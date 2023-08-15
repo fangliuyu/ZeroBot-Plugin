@@ -48,7 +48,7 @@ import (
 	//                                                                  //
 	//                                                                  //
 
-	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/ygocombo" // 游戏王combo记录器
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/ygocombo" // 游戏王combo记录器
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygo"    // 游戏王相关插件
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygosem" // 游戏王sem平台相关插件
 
