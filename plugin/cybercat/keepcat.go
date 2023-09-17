@@ -46,39 +46,14 @@ func init() {
 		case cmd && money > 0:
 			stauts = "从工作回来休息中\n	为你赚了" + strconv.Itoa(money)
 		}
-		now := time.Now().Hour()
-		if !cmd && ((now < 6 || (now > 8 && now < 11) || (now > 14 && now < 17) || now > 21) && (userInfo.Satiety > 50 || rand.Intn(3) == 1)) {
-			if userInfo.Satiety > 90 {
-				ctx.SendChain(message.Text("猫猫拍了拍饱饱的肚子表示并不饿呢"))
-				return
-			}
-			ctx.SendChain(message.Text("猫猫只想和你一起吃传统早中晚饭咧"))
-			return
-		}
-		/****************************计算食物数量***********************************/
-		food := 0.0
-		if !cmd {
-			stauts = "刚刚的食物很美味"
-			// 如果没有指定猫粮就 （1 + 猫粮/5*x ）斤猫粮
-			if ctx.State["regex_matched"].([]string)[2] != "" {
-				food, _ = strconv.ParseFloat(ctx.State["regex_matched"].([]string)[2], 64)
-			} else {
-				food = math.Max(1.0+math.Max(userInfo.Food-1, 0)/5*rand.Float64(), (100-userInfo.Satiety)*userInfo.Weight/200)
-			}
-			switch {
-			case userInfo.Food == 0 || userInfo.Food < food:
-				ctx.SendChain(message.Reply(id), message.Text("铲屎官你已经没有足够的猫粮了"))
-				return
-			// 如果猫粮太多就只吃一点，除非太饿了
-			case food > 5 && (rand.Intn(10) < 8 || userInfo.Satiety < 30):
-				food = 5
-				stauts = "食物实在太多了!"
-			case food < 0.5:
-				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "骂骂咧咧的走了"))
-				return
-			}
-		}
 		/****************************空闲时间猫体力的减少计算***********************************/
+		food := 0.0
+		// 如果没有指定猫粮就 （1 + 猫粮/5*x ）斤猫粮
+		if ctx.State["regex_matched"].([]string)[2] != "" {
+			food, _ = strconv.ParseFloat(ctx.State["regex_matched"].([]string)[2], 64)
+		} else {
+			food = math.Max(1.0+math.Max(userInfo.Food-1, 0)/5*rand.Float64(), (100-userInfo.Satiety)*userInfo.Weight/200)
+		}
 		subtime := 0.0
 		if userInfo.LastTime != 0 {
 			lastTime := time.Unix(userInfo.LastTime, 0)
@@ -117,9 +92,33 @@ func init() {
 		}
 		/***************************整体结算，判断当前的心情是否继续************************************/
 		userInfo = userInfo.settleOfData()
+		if err = catdata.insert(gidStr, userInfo); err != nil {
+			ctx.SendChain(message.Text("[ERROR]:", err))
+			return
+		}
 		if !cmd && userInfo.Satiety > 80 && rand.Intn(100) > zbmath.Max(userInfo.Mood*2-userInfo.Mood/2, 50) {
 			ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "好像并没有心情吃东西"))
 			return
+		}
+		if !cmd && (userInfo.Satiety > 90 && rand.Intn(100) >= 30) {
+			ctx.SendChain(message.Text("猫猫拍了拍饱饱的肚子表示并不饿呢"))
+			return
+		}
+		/****************************计算食物数量***********************************/
+		if !cmd {
+			stauts = "刚刚的食物很美味"
+			switch {
+			case userInfo.Food == 0 || userInfo.Food < food:
+				ctx.SendChain(message.Reply(id), message.Text("铲屎官你已经没有足够的猫粮了"))
+				return
+			// 如果猫粮太多就只吃一点，除非太饿了
+			case food > 5 && (rand.Intn(10) < 8 || userInfo.Satiety < 30):
+				food = 5
+				stauts = "食物实在太多了!"
+			case food < 0.5:
+				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "骂骂咧咧的走了"))
+				return
+			}
 		}
 		/****************************结算食物***********************************/
 		userInfo = userInfo.settleOfSatiety(food)
