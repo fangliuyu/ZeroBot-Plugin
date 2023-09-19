@@ -109,7 +109,7 @@ var (
 )
 
 var (
-	engine = control.Register("mcfish", &ctrl.Options[*zero.Ctx]{
+	engine = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "钓鱼",
 		Help: "一款钓鱼模拟器\n----------指令----------\n" +
@@ -572,22 +572,19 @@ func (sql *fishdb) refreshStroeInfo() (ok bool, err error) {
 		_ = sql.db.Del("stroeDiscount", "where Duration = "+strconv.FormatInt(info.Duration, 10))
 	}
 	if refresh {
-		// 每天调控1种鱼
-		thingInfo := store{}
-		err = sql.db.Create("store", &thingInfo)
+		err = sql.db.Create("store", &store{})
 		if err != nil {
 			return
 		}
+		// 每天调控1种鱼
 		fish := fishList[rand.Intn(len(fishList))]
-		_ = sql.db.Find("store", &thingInfo, "where Name = '"+fish+"'")
-		if thingInfo == (store{}) {
-			thingInfo = store{
-				Duration: time.Now().Unix(),
-				Name:     fish,
-				Type:     "fish",
-				Price:    priceList[fish] * discountList[fish] / 100,
-			}
+		thingInfo := store{
+			Duration: time.Now().Unix(),
+			Name:     fish,
+			Type:     "fish",
+			Price:    priceList[fish] * discountList[fish] / 100,
 		}
+		_ = sql.db.Find("store", &thingInfo, "where Name = '"+fish+"'")
 		thingInfo.Number += (100 - discountList[fish])
 		if thingInfo.Number < 1 {
 			thingInfo.Number = 100
