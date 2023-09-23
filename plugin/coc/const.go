@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// DefaultyamlFile COC面板
+	// DefaultYamlFile COC面板
 	DefaultYamlFile = "COC面板.yml"
-	// SettingyamlFile 设置
+	// SettingYamlFile 设置
 	SettingYamlFile = "setting.yml"
 )
 

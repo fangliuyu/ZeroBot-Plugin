@@ -470,7 +470,7 @@ func init() {
 			logrus.Warnln(err)
 		} else if ok {
 			msg = "\n(半价福利已使用1次)"
-			price = price / 2
+			price /= 2
 		}
 		err = wallet.InsertWalletOf(uid, -price)
 		if err != nil {
