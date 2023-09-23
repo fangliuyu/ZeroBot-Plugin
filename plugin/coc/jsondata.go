@@ -2,9 +2,10 @@
 package coc
 
 import (
-	"encoding/json"
 	"os"
 	"strconv"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/FloatTech/floatbox/file"
 )
@@ -12,7 +13,7 @@ import (
 func init() {
 	go func() {
 		// 新建默认coc面板
-		cfgFile := engine.DataFolder() + DefaultJSONFile
+		cfgFile := engine.DataFolder() + DefaultYamlFile
 		if file.IsNotExist(cfgFile) {
 			// 配置默认 config
 			baseAttr := []baseInfo{
@@ -45,16 +46,16 @@ func init() {
 					Value:    50,
 				},
 			}
-			defaultJSON := cocJSON{
+			defaultYal := cocYaml{
 				BaseInfo:  baseAttr,
 				Attribute: attributes,
 			}
-			err := savePanel(defaultJSON)
+			err := savePanel(defaultYal)
 			if err != nil {
 				panic(err.Error())
 			}
 		}
-		sampleFile := engine.DataFolder() + "面版填写示例.json"
+		sampleFile := engine.DataFolder() + "面版填写示例.yml"
 		if file.IsNotExist(sampleFile) {
 			baseAttr := []baseInfo{
 				{
@@ -121,14 +122,20 @@ func init() {
 					MinValue: 0,
 					Value:    25,
 				},
+				{
+					Name:     "信誉",
+					MaxValue: 100,
+					MinValue: 0,
+					Value:    25,
+				},
 			}
-			defaultJSON := cocJSON{
+			defaultYaml := cocYaml{
 				BaseInfo:  baseAttr,
 				Attribute: attributes,
 			}
 			reader, err := os.Create(sampleFile)
 			if err == nil {
-				err = json.NewEncoder(reader).Encode(&defaultJSON)
+				err = yaml.NewEncoder(reader).Encode(&defaultYaml)
 			}
 			if err != nil {
 				panic(err.Error())
@@ -138,16 +145,16 @@ func init() {
 }
 
 // 加载数据(2个参数：群号，用户)
-func loadPanel(gid int64, uid ...int64) (info cocJSON, err error) {
+func loadPanel(gid int64, uid ...int64) (info cocYaml, err error) {
 	cfgFile := strconv.FormatInt(gid, 10)
 	if uid != nil {
-		cfgFile += "/" + strconv.FormatInt(uid[0], 10) + ".json"
+		cfgFile += "/" + strconv.FormatInt(uid[0], 10) + ".yml"
 	} else {
-		cfgFile += "/" + DefaultJSONFile
+		cfgFile += "/" + DefaultYamlFile
 	}
 	reader, err := os.Open(engine.DataFolder() + cfgFile)
 	if err == nil {
-		err = json.NewDecoder(reader).Decode(&info)
+		err = yaml.NewDecoder(reader).Decode(&info)
 	}
 	if err == nil {
 		err = reader.Close()
@@ -156,8 +163,8 @@ func loadPanel(gid int64, uid ...int64) (info cocJSON, err error) {
 }
 
 // 保存数据(3个参数：数据，群号，用户)
-func savePanel(cfg cocJSON, infoID ...int64) error {
-	cfgFile := engine.DataFolder() + DefaultJSONFile
+func savePanel(cfg cocYaml, infoID ...int64) error {
+	cfgFile := engine.DataFolder() + DefaultYamlFile
 	if infoID != nil {
 		str := ""
 		for i, ID := range infoID {
@@ -170,11 +177,11 @@ func savePanel(cfg cocJSON, infoID ...int64) error {
 				// }
 			}
 		}
-		cfgFile = engine.DataFolder() + str + ".json"
+		cfgFile = engine.DataFolder() + str + ".yml"
 	}
 	reader, err := os.Create(cfgFile)
 	if err == nil {
-		err = json.NewEncoder(reader).Encode(&cfg)
+		err = yaml.NewEncoder(reader).Encode(&cfg)
 	}
 	return err
 }
@@ -183,14 +190,14 @@ func savePanel(cfg cocJSON, infoID ...int64) error {
 func loadSetting(gid int64) (info settingInfo, err error) {
 	mu.Lock()
 	defer mu.Unlock()
-	cfgFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + SettingJSONFile
+	cfgFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + SettingYamlFile
 	if file.IsNotExist(cfgFile) {
 		// info.DefaultDice = 100
 		return
 	}
 	reader, err := os.Open(cfgFile)
 	if err == nil {
-		err = json.NewDecoder(reader).Decode(&info)
+		err = yaml.NewDecoder(reader).Decode(&info)
 	}
 	if err == nil {
 		err = reader.Close()
@@ -203,10 +210,10 @@ func loadSetting(gid int64) (info settingInfo, err error) {
 func saveSetting(info settingInfo, gid int64) error {
 	mu.Lock()
 	defer mu.Unlock()
-	cfgFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + SettingJSONFile
+	cfgFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + SettingYamlFile
 	reader, err := os.Create(cfgFile)
 	if err == nil {
-		err = json.NewEncoder(reader).Encode(&info)
+		err = yaml.NewEncoder(reader).Encode(&info)
 	}
 	settingGoup[gid] = info
 	return err

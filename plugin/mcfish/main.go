@@ -27,7 +27,7 @@ type fishdb struct {
 const FishLimit = 50
 
 // version 规则版本号
-const version = "5.4.1"
+const version = "5.4.2"
 
 // 各物品信息
 type jsonInfo struct {
@@ -91,6 +91,23 @@ type storeDiscount struct {
 	Discount int
 }
 
+// buff状态记录
+// buff0: 优惠卷
+type buffInfo struct {
+	ID       int64
+	Duration int64
+	Buff0    int // Coupon
+	Buff1    int // 暂定
+	Buff2    int // 暂定
+	Buff3    int // 暂定
+	Buff4    int // 暂定
+	Buff5    int // 暂定
+	Buff6    int // 暂定
+	Buff7    int // 暂定
+	Buff8    int // 暂定
+	Buff9    int // 暂定
+}
+
 var (
 	articlesInfo  = jsonInfo{}                            // 物品信息
 	thingList     = make([]string, 0, 100)                // 竿列表
@@ -114,7 +131,7 @@ var (
 		Brief:            "钓鱼",
 		Help: "一款钓鱼模拟器\n----------指令----------\n" +
 			"- 钓鱼看板/钓鱼商店\n- 购买xxx\n- 购买xxx [数量]\n- 出售xxx\n- 出售xxx [数量]\n" +
-			"- 钓鱼背包\n- 装备[xx竿|三叉戟|美西螈]\n- 附魔[诱钓|海之眷顾]\n- 修复鱼竿\n- 合成[xx竿|三叉戟]\n- 消除绑定诅咒\n- 消除绑定诅咒 [数量]\n" +
+			"- 钓鱼背包\n- 装备[xx竿|三叉戟|美西螈]\n- 附魔[诱钓|海之眷顾]\n- 修复鱼竿\n- 合成[xx竿|三叉戟]\n- 消除[绑定|宝藏]诅咒\n- 消除[绑定|宝藏]诅咒 [数量]\n" +
 			"- 进行钓鱼\n- 进行n次钓鱼\n- 当前装备概率明细\n" +
 			"规则V" + version + ":\n" +
 			"1.每日的商店价格是波动的!!如何最大化收益自己考虑一下喔\n" +
@@ -130,7 +147,7 @@ var (
 			"7.物品BUFF:\n-> 钓鱼佬 : 当背包名字含有'鱼'的物品数量超过100时激活,钓到物品概率提高至90%\n-> 修复大师 : 当背包鱼竿数量超过10时激活,修复物品时耐久百分百继承\n" +
 			"8.合成:\n-> 铁竿 : 3x木竿\n-> 金竿 : 3x铁竿\n-> 钻石竿 : 3x金竿\n-> 下界合金竿 : 3x钻石竿\n-> 三叉戟 : 3x下界合金竿\n注:合成成功率90%,继承附魔等级合/3的等级\n" +
 			"9.杂项:\n-> 无装备的情况下,每人最多可以购买3次100块钱的鱼竿\n-> 默认状态钓鱼上钩概率为60%(理论值!!!)\n-> 附魔的鱼竿会因附魔变得昂贵,每个附魔最高3级\n-> 三叉戟不算鱼竿,修复时可直接满耐久\n" +
-			"-> 鱼竿数量大于70的不能买东西;\n     鱼竿数量大于64的不能钓鱼;\n     每购/售10次物品获得1层宝藏诅咒;\n     每钓鱼75次获得1本净化书",
+			"-> 鱼竿数量大于70的不能买东西;\n     鱼竿数量大于64的不能钓鱼;\n     每购/售10次鱼竿获得1层宝藏诅咒;\n     每购买20次物品将获得3次价格减半福利;\n     每钓鱼75次获得1本净化书",
 		PublicDataFolder: "McFish",
 	}).ApplySingle(ctxext.DefaultSingle)
 	getdb = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
@@ -244,7 +261,7 @@ func (sql *fishdb) updateFishInfo(uid int64, number int) (residue int, err error
 	return
 }
 
-// 更新buff
+// 更新诅咒
 func (sql *fishdb) updateCurseFor(uid int64, info string, number int) (err error) {
 	if number < 1 {
 		return
@@ -693,4 +710,30 @@ func (sql *fishdb) updateStoreInfo(thingInfo store) (err error) {
 		return sql.db.Del("store", "where Duration = "+strconv.FormatInt(thingInfo.Duration, 10))
 	}
 	return sql.db.Insert("store", &thingInfo)
+}
+
+// 更新buff add==true buff0++ if buff0=20 buff1=3
+func (sql *fishdb) updateBuffFor(uid int64, add bool) (ok bool, err error) {
+	ok = true
+	sql.Lock()
+	defer sql.Unlock()
+	userInfo := buffInfo{ID: uid}
+	err = sql.db.Create("buff", &userInfo)
+	if err != nil {
+		return false, err
+	}
+	_ = sql.db.Find("buff", &userInfo, "where ID = "+strconv.FormatInt(uid, 10))
+	if add {
+		userInfo.Buff0++
+		if userInfo.Buff0 > 20 {
+			userInfo.Buff0 -= 20
+			userInfo.Buff1 = 3
+		}
+	}
+	if !add && userInfo.Buff1 > 0 {
+		userInfo.Buff1--
+	} else {
+		ok = false
+	}
+	return ok, sql.db.Insert("buff", &userInfo)
 }

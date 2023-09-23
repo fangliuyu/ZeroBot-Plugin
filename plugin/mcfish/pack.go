@@ -42,9 +42,9 @@ func init() {
 		}
 		ctx.SendChain(message.ImageBytes(pic))
 	})
-	engine.OnRegex(`^消除绑定诅咒(\d*)$`, getdb).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+	engine.OnRegex(`^消除(绑定|宝藏)诅咒(\d*)$`, getdb).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
 		uid := ctx.Event.UserID
-		number, _ := strconv.Atoi(ctx.State["regex_matched"].([]string)[1])
+		number, _ := strconv.Atoi(ctx.State["regex_matched"].([]string)[2])
 		if number == 0 {
 			number = 1
 		}

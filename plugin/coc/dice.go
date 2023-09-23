@@ -47,7 +47,7 @@ func init() {
 		mu.Lock()
 		cocSetting := settingGoup[gid]
 		mu.Unlock()
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json"
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml"
 		if file.IsNotExist(infoFile) {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("请先创建角色"))
 			return

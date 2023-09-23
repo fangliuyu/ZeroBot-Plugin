@@ -17,12 +17,12 @@ func init() {
 	engine.OnPrefixGroup([]string{".set", "。set", ".SET"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
 		uid := ctx.Event.UserID
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultJSONFile
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultYamlFile
 		if file.IsNotExist(infoFile) {
-			ctx.SendChain(message.Text("你群还没有布置coc,请相关人员后台布局coc.(详情看用法)"))
+			ctx.SendChain(message.Text("你群还没有布置coc,请相关人员后台布置coc.(详情看用法)"))
 			return
 		}
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你还没有创建角色"))
 			return
 		}
@@ -32,19 +32,21 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
-		baseMsg := strings.Split(ctx.State["args"].(string), "/")
+		baseMsg := strings.Split(strings.TrimSpace(ctx.State["args"].(string)), "/")
 		if baseMsg == nil || len(baseMsg) < 1 {
-			ctx.SendChain(message.Text("[ERROR]:参数错误"))
+			ctx.SendChain(message.Text("[ERROR setting.go.37]:参数错误"))
 			return
 		}
+		change := false
 		for _, msgInfo := range baseMsg {
 			msgValue := strings.Split(msgInfo, "#")
-			if msgValue == nil || len(baseMsg) <= 1 {
-				ctx.SendChain(message.Text("[ERROR]:参数错误"))
-				return
+			if msgValue[0] == "描述" {
+				cocInfo.Other = append(cocInfo.Other, msgValue[1])
+				continue
 			}
 			for i, info := range cocInfo.BaseInfo {
 				if msgValue[0] == info.Name {
+					change = true
 					munberValue, err := strconv.Atoi(msgValue[1])
 					if err != nil {
 						cocInfo.BaseInfo[i].Value = msgValue[1]
@@ -54,12 +56,16 @@ func init() {
 				}
 			}
 		}
-		err = savePanel(cocInfo, gid, uid)
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]:", err))
+		if change {
+			err = savePanel(cocInfo, gid, uid)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]:", err))
+				return
+			}
+			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 			return
 		}
-		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
+		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("更改内容不匹配"))
 	})
 	engine.OnPrefixGroup([]string{".sst", "。sst", ".SST"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		settingMsg := strings.Split(strings.TrimSpace(ctx.State["args"].(string)), " ")
@@ -69,12 +75,12 @@ func init() {
 		}
 		gid := ctx.Event.GroupID
 		uid := ctx.Event.UserID
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultJSONFile
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultYamlFile
 		if file.IsNotExist(infoFile) {
 			ctx.SendChain(message.Text("你群还没有布置coc,请相关人员后台布局coc.(详情看用法)"))
 			return
 		}
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你还没有创建角色"))
 			return
 		}
@@ -127,12 +133,12 @@ func init() {
 		cocSetting := settingGoup[gid]
 		mu.Unlock()
 		uid := ctx.Event.UserID
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultJSONFile
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultYamlFile
 		if file.IsNotExist(infoFile) {
 			ctx.SendChain(message.Text("你群还没有布置coc,请相关人员后台布局coc.(详情看用法)"))
 			return
 		}
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你还没有创建角色"))
 			return
 		}
@@ -148,6 +154,7 @@ func init() {
 			defaultDice = 100  // 6
 			limit       = -1   // 8 -> name
 			atrr        string // 9 -> name
+			money       = 0
 			success     = false
 		)
 
@@ -204,7 +211,7 @@ func init() {
 		}
 
 		if ctx.State["regex_matched"].([]string)[13] != "" {
-			money, err := strconv.Atoi(ctx.State["regex_matched"].([]string)[9])
+			money, err = strconv.Atoi(ctx.State["regex_matched"].([]string)[9])
 			if err != nil || money < 0 {
 				ctx.SendChain(message.Text("[ERROR]:金钱参数错误"))
 				return
@@ -216,8 +223,9 @@ func init() {
 			}
 		}
 
-		msg := make(message.Message, 0, 2+times*2)
+		msg := make(message.Message, 0, 3+times*2)
 		msg = append(msg, message.Reply(ctx.Event.MessageID))
+		msg = append(msg, message.Text("对[", atrr, "增幅", atrrValue, "]事件\n使用了金钱", money, "和", ctx.State["regex_matched"].([]string)[8], "为权重进行了\n"))
 		sum := 0
 		result := ""
 		for i := times; i > 0; i-- {
@@ -237,6 +245,9 @@ func init() {
 			for i, info := range cocInfo.Attribute {
 				if atrr == info.Name {
 					cocInfo.Attribute[i].Value += atrrValue
+					if cocInfo.Attribute[i].Value > cocInfo.Attribute[i].MaxValue {
+						cocInfo.Attribute[i].Value = cocInfo.Attribute[i].MaxValue
+					}
 				}
 			}
 			err = savePanel(cocInfo, gid, uid)
@@ -247,7 +258,7 @@ func init() {
 		}
 		ctx.Send(msg)
 	})
-	engine.OnRegex(`^(\.|。)(setpc|SETPC)(\[CQ:at,qq=)?(\d+)(\])?`, getsetting, zero.AdminPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+	engine.OnRegex(`^(\.|。)(pc|PC)(\[CQ:at,qq=)?(\d+)(\])?`, getsetting, zero.AdminPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
 		mu.Lock()
 		cocSetting := settingGoup[gid]
@@ -268,7 +279,7 @@ func init() {
 		}
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 	})
-	engine.OnPrefixGroup([]string{".setdice", "。setdice", ".SETDICE"}, getsetting, func(ctx *zero.Ctx) bool {
+	engine.OnPrefixGroup([]string{".dice", "。dice", ".DICE"}, getsetting, func(ctx *zero.Ctx) bool {
 		mu.Lock()
 		cocSetting := settingGoup[ctx.Event.GroupID]
 		mu.Unlock()
@@ -297,7 +308,7 @@ func init() {
 		}
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 	})
-	engine.OnPrefixGroup([]string{".setrule", "。setrule", ".SETRULE"}, getsetting, func(ctx *zero.Ctx) bool {
+	engine.OnPrefixGroup([]string{".rule", "。rule", ".RULE"}, getsetting, func(ctx *zero.Ctx) bool {
 		mu.Lock()
 		cocSetting := settingGoup[ctx.Event.GroupID]
 		mu.Unlock()
@@ -326,7 +337,7 @@ func init() {
 		}
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 	})
-	engine.OnRegex(`^(\.|。)(show|SHOW)(\[CQ:at,qq=)?(\d+)(\])?`, getsetting, func(ctx *zero.Ctx) bool {
+	engine.OnRegex(`^(\.|。)(show|SHOW)\s*(\[CQ:at,qq=)?(\d+)(\])?`, getsetting, func(ctx *zero.Ctx) bool {
 		mu.Lock()
 		cocSetting := settingGoup[ctx.Event.GroupID]
 		mu.Unlock()
@@ -344,7 +355,7 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("对方还没有创建角色"))
 			return
 		}
@@ -361,17 +372,12 @@ func init() {
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.ImageBytes(pic))
 	})
 	engine.OnRegex(`^(\.|。)(kill|KILL)(\[CQ:at,qq=)?(\d+)?(\])?`, getsetting, func(ctx *zero.Ctx) bool {
-		uid, err := strconv.ParseInt(ctx.State["regex_matched"].([]string)[4], 10, 64)
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]:", err))
-			return false
-		}
 		mu.Lock()
 		cocSetting := settingGoup[ctx.Event.GroupID]
 		mu.Unlock()
 		if cocSetting.CocPC == 0 {
 			return zero.AdminPermission(ctx)
-		} else if (cocSetting.CocPC != 0 && ctx.Event.UserID != cocSetting.CocPC) || uid != ctx.Event.UserID {
+		} else if cocSetting.CocPC != 0 && ctx.Event.UserID != cocSetting.CocPC {
 			ctx.SendChain(message.Text("[ERROR]:已指定PC,无权操作"))
 			return false
 		}
@@ -382,7 +388,7 @@ func init() {
 		if err != nil || uid == 0 {
 			uid = ctx.Event.UserID
 		}
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json"
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml"
 		if file.IsNotExist(infoFile) {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("还没有创建角色"))
 			return
@@ -394,7 +400,7 @@ func init() {
 		}
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 	})
-	engine.OnRegex(`^(\.|。)(pcset|PCSET)(\[CQ:at,qq=)?(\d+)(\])? (.*)$`, getsetting, func(ctx *zero.Ctx) bool {
+	engine.OnRegex(`^(\.|。)(pcset|PCSET)\s*(\[CQ:at,qq=)?(\d+)(\])?\s*(.*)$`, getsetting, func(ctx *zero.Ctx) bool {
 		mu.Lock()
 		cocSetting := settingGoup[ctx.Event.GroupID]
 		mu.Unlock()
@@ -412,7 +418,7 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("对方还没有创建角色"))
 			return
 		}
@@ -422,10 +428,16 @@ func init() {
 			return
 		}
 		baseMsg := strings.Split(ctx.State["regex_matched"].([]string)[6], "/")
+		change := false
 		for _, msgInfo := range baseMsg {
 			msgValue := strings.Split(msgInfo, "#")
+			if msgValue[0] == "描述" {
+				cocInfo.Other = append(cocInfo.Other, msgValue[1])
+				continue
+			}
 			for i, info := range cocInfo.BaseInfo {
 				if msgValue[0] == info.Name {
+					change = true
 					munberValue, err := strconv.Atoi(msgValue[1])
 					if err != nil {
 						cocInfo.BaseInfo[i].Value = msgValue[1]
@@ -434,22 +446,33 @@ func init() {
 					}
 				}
 			}
+			if change {
+				break
+			}
 			for i, info := range cocInfo.Attribute {
 				if msgValue[0] == info.Name {
+					change = true
 					munberValue, err := strconv.Atoi(msgValue[1])
 					if err != nil {
 						ctx.SendChain(message.Text("[ERROR]:", err))
 						return
 					}
-					cocInfo.BaseInfo[i].Value = munberValue
+					cocInfo.Attribute[i].Value = munberValue
 				}
 			}
+			if change {
+				break
+			}
 		}
-		err = savePanel(cocInfo, gid, uid)
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]:", err))
+		if change {
+			err = savePanel(cocInfo, gid, uid)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]:", err))
+				return
+			}
+			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 			return
 		}
-		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
+		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("无数据匹配"))
 	})
 }

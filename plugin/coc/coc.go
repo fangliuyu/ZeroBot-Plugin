@@ -26,40 +26,51 @@ import (
 )
 
 func init() {
-	engine.OnPrefixGroup([]string{".loadcoc", "。loadcoc", ".LOADCOC"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+	engine.OnPrefixGroup([]string{".loadcoc", "。loadcoc", ".LOADCOC"}, func(ctx *zero.Ctx) bool {
+		mu.Lock()
+		cocSetting := settingGoup[ctx.Event.GroupID]
+		mu.Unlock()
+		if cocSetting.CocPC == 0 {
+			return zero.AdminPermission(ctx)
+		} else if cocSetting.CocPC != 0 && ctx.Event.UserID != cocSetting.CocPC {
+			ctx.SendChain(message.Text("[ERROR]:已指定PC,无权操作"))
+			return false
+		}
+		return true
+	}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
-		sampleFile := engine.DataFolder() + "面版填写示例.json"
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultJSONFile
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultYamlFile
 		fileName := strings.TrimSpace(ctx.State["args"].(string))
-		if fileName == "" {
+		if fileName == "" { // 如果没有参数导入默认配置
+			sampleFile := engine.DataFolder() + "面版填写示例.yml"
 			sourceFileStat, err := os.Stat(sampleFile)
 			if err != nil {
-				ctx.SendChain(message.Text("[ERROR]:", err))
+				ctx.SendChain(message.Text("[ERROR coc.go.37]:", err))
 				return
 			}
 
 			if !sourceFileStat.Mode().IsRegular() {
-				ctx.SendChain(message.Text("[ERROR]:", sampleFile, " is not a regular file"))
+				ctx.SendChain(message.Text("[ERROR coc.go.42]:", sampleFile, " is not a regular file"))
 				return
 			}
 
 			source, err := os.Open(sampleFile)
 			if err != nil {
-				ctx.SendChain(message.Text("[ERROR]:", err))
+				ctx.SendChain(message.Text("[ERROR coc.go.48]:", err))
 				return
 			}
 			defer source.Close()
 
-			destination, err := os.Create(infoFile)
+			destination, err := os.OpenFile(infoFile, os.O_WRONLY|os.O_CREATE, os.ModePerm)
 			if err != nil {
-				ctx.SendChain(message.Text("[ERROR]:", err))
+				ctx.SendChain(message.Text("[ERROR coc.go.55]:", err))
 				return
 			}
-
 			defer destination.Close()
+
 			_, err = io.Copy(destination, source)
 			if err != nil {
-				ctx.SendChain(message.Text("[ERROR]:", err))
+				ctx.SendChain(message.Text("[ERROR coc.go.62]:", err))
 				return
 			}
 			ctx.SendChain(message.Text("设置面板完成"))
@@ -72,7 +83,7 @@ func init() {
 			return
 		}
 		// 下载文件
-		ctx.SendChain(message.Text("在群文件中找到了歌曲,信息如下:\n", fileSearchName, "\n确认正确后回复“是/否”进行设置"))
+		ctx.SendChain(message.Text("在群文件中找到了模版,信息如下:\n", fileSearchName, "\n确认正确后回复“是/否”进行下载"))
 		next := zero.NewFutureEvent("message", 999, false, zero.RegexRule(`(是|否)`), ctx.CheckSession())
 		recv, cancel := next.Repeat()
 		defer cancel()
@@ -106,16 +117,16 @@ func init() {
 	engine.OnPrefixGroup([]string{".coc", "。coc", ".COC"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
 		uid := ctx.Event.UserID
-		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultJSONFile
+		infoFile := engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + DefaultYamlFile
 		if file.IsNotExist(infoFile) {
 			ctx.SendChain(message.Text("你群还没有布置coc,请相关人员后台布局coc.(详情看用法)"))
 			return
 		}
 		var (
-			cocInfo cocJSON
+			cocInfo cocYaml
 			err     error
 		)
-		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".json") {
+		if file.IsNotExist(engine.DataFolder() + strconv.FormatInt(gid, 10) + "/" + strconv.FormatInt(uid, 10) + ".yml") {
 			cocInfo, err = loadPanel(gid)
 			if err != nil {
 				ctx.SendChain(message.Text("[ERROR]:", err))
@@ -228,7 +239,7 @@ func getFileURLbyfolderID(ctx *zero.Ctx, fileName, folderid string) (fileSearchN
 	return
 }
 
-func drawImage(userInfo cocJSON) (imagePicByte []byte, err error) {
+func drawImage(userInfo cocYaml) (imagePicByte []byte, err error) {
 	var (
 		wg          sync.WaitGroup
 		userIDBlock image.Image // 编号
@@ -323,7 +334,7 @@ func drawImage(userInfo cocJSON) (imagePicByte []byte, err error) {
 }
 
 // 绘制ID区域
-func (userInfo *cocJSON) drawIDBlock() (image.Image, error) {
+func (userInfo *cocYaml) drawIDBlock() (image.Image, error) {
 	fontSize := 30.0
 	userIDstr := "编号:" + strconv.FormatInt(userInfo.ID, 10)
 	canvas := gg.NewContext(1, 1)
@@ -351,7 +362,7 @@ func (userInfo *cocJSON) drawIDBlock() (image.Image, error) {
 }
 
 // 绘制基本信息区域
-func (userInfo *cocJSON) drawInfoBlock() (image.Image, error) {
+func (userInfo *cocYaml) drawInfoBlock() (image.Image, error) {
 	fontSize := 50.0
 	raw := len(userInfo.BaseInfo)
 	maxStr := ""
@@ -408,8 +419,8 @@ func (userInfo *cocJSON) drawInfoBlock() (image.Image, error) {
 }
 
 // 绘制属性信息区域
-func (userInfo *cocJSON) drawAttrBlock() (image.Image, error) {
-	fontSize := 50.0
+func (userInfo *cocYaml) drawAttrBlock() (image.Image, error) {
+	fontSize := 45.0
 	raw := len(userInfo.Attribute)
 	canvas := gg.NewContext(1, 1)
 	data, err := file.GetLazyData(text.BoldFontFile, control.Md5File, true)
@@ -481,7 +492,7 @@ func (userInfo *cocJSON) drawAttrBlock() (image.Image, error) {
 }
 
 // 绘制其他信息区域
-func (userInfo *cocJSON) drawOtherBlock() (pic image.Image, err error) {
+func (userInfo *cocYaml) drawOtherBlock() (pic image.Image, err error) {
 	fontSize := 25.0
 	glowsd, err := file.GetLazyData(text.BoldFontFile, control.Md5File, true)
 	if err != nil {

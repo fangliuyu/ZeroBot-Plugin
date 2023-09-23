@@ -280,9 +280,11 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.10]:", err))
 			return
 		}
-		err = dbdata.updateCurseFor(uid, "sell", 1)
-		if err != nil {
-			logrus.Warnln(err)
+		if strings.Contains(thingName, "竿") {
+			err = dbdata.updateCurseFor(uid, "sell", 1)
+			if err != nil {
+				logrus.Warnln(err)
+			}
 		}
 		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("出售成功,你赚到了", pice*number, msg)))
 	})
@@ -462,6 +464,14 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.12]:", err))
 			return
 		}
+		msg = ""
+		ok, err = dbdata.updateBuffFor(uid, false)
+		if err != nil {
+			logrus.Warnln(err)
+		} else if ok {
+			msg = "\n(半价福利已使用1次)"
+			price = price / 2
+		}
 		err = wallet.InsertWalletOf(uid, -price)
 		if err != nil {
 			ctx.SendChain(message.Text("[ERROR at store.go.13]:", err))
@@ -497,11 +507,19 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.14]:", err))
 			return
 		}
-		err = dbdata.updateCurseFor(uid, "buy", 1)
-		if err != nil {
-			logrus.Warnln(err)
+		if strings.Contains(thingName, "竿") {
+			err = dbdata.updateCurseFor(uid, "buy", 1)
+			if err != nil {
+				logrus.Warnln(err)
+			}
 		}
-		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("购买成功")))
+		if !ok {
+			_, err = dbdata.updateBuffFor(uid, true)
+			if err != nil {
+				logrus.Warnln(err)
+			}
+		}
+		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("购买成功,花费了", price, msg)))
 	})
 }
 
