@@ -72,13 +72,13 @@ func init() {
 			return
 		}
 		proURL := data.regexpmatch(`<a class="btn btn-default btn-sm" href="(.*)" target="_blank">`)[0][1]
-		data, err = web.GetData("https://ygo233.com/download/ygomobile")
+		data, err = web.GetData("https://ygomobile.top")
 		if err != nil {
 			ctx.SendChain(message.Text("官方链接:https://ygo233.com/download\npro网盘下载地址:", proURL))
 			return
 		}
-		mobileURL := data.regexpmatch(`<a id="downloadButton" href="(.*)" class=" qrcode">下载</a>`)[0][1]
-		ctx.SendChain(message.Text("官方链接:https://ygo233.com/download\npro网盘下载地址:", proURL, "mobile网盘下载地址:", mobileURL))
+		mobileURL := data.regexpmatch(`<a id="downloadButton" href="(.*)">下载</a>`)[0][1]
+		ctx.SendChain(message.Text("官方链接:https://ygo233.com/download\npro网盘下载地址:", proURL, "\nmobile网盘下载地址:", mobileURL))
 	})
 	// 先行卡
 	engine.OnFullMatchGroup([]string{"/先行卡", ".先行卡", "先行卡"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
