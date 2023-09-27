@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	engine = control.Register("coc", &ctrl.Options[*zero.Ctx]{
+	engine = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "简易的跑团辅助器",
 		Help: "只支持指定的面板格式,需要bot主人后台以群号为文件夹,将COC面板模版复制到文件夹里按对应格式改动后才行。\n" +

@@ -3,8 +3,12 @@ package ygo
 
 import (
 	"math/rand"
+	"regexp"
 	"strings"
 
+	"github.com/FloatTech/floatbox/binary"
+	"github.com/FloatTech/floatbox/file"
+	"github.com/FloatTech/floatbox/web"
 	ctrl "github.com/FloatTech/zbpctrl"
 	control "github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
@@ -38,6 +42,14 @@ var (
 	}
 )
 
+type T []byte
+
+// 正则筛选数据
+func (s T) regexpmatch(rule string) [][]string {
+	str := binary.BytesToString(s)
+	return regexp.MustCompile(rule).FindAllStringSubmatch(str, -1)
+}
+
 func init() {
 	engine := control.Register("ygotools", &ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
@@ -47,6 +59,7 @@ func init() {
 			"时间=0~999  (单位:分钟)\n血量=0~99999\nT卡=(0:可使用T独,1:仅可以使用T卡)\n" +
 			"抽卡=0~35(每回合抽)\n起手=1~40\n大师=(1|2|3|新大师|2020)\n" +
 			"卡组=不(检查|洗切)\n卡表=卡表位号（0表示无禁卡）",
+		PrivateDataFolder: "ygotools",
 	})
 
 	// 软件
@@ -57,6 +70,21 @@ func init() {
 	// 先行卡
 	engine.OnFullMatchGroup([]string{"/先行卡", ".先行卡", "先行卡"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		ctx.SendChain(message.Text("先行卡链接:https://ygo233.com/pre"))
+	})
+	engine.OnFullMatchGroup([]string{"/上传先行卡"}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		var data T
+		data, err := web.GetData("https://ygo233.com/pre")
+		if err != nil {
+			ctx.SendChain(message.Text("ERROR: ", err))
+			return
+		}
+		url := data.regexpmatch(`<a class="btn btn-default btn-sm" href="(.*)">`)[0][1]
+		err = file.DownloadTo(url, file.BOTPATH+"/"+engine.DataFolder()+"ygosrv233-pre.zip")
+		if err != nil {
+			ctx.SendChain(message.Text("ERROR: ", err))
+			return
+		}
+		ctx.UploadThisGroupFile(file.BOTPATH+"/"+engine.DataFolder()+"ygosrv233-pre.zip", "ygosrv233-pre.zip", "")
 	})
 	// 游戏王美图
 	engine.OnFullMatch("hso。").SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {

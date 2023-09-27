@@ -14,17 +14,18 @@ import (
 	"github.com/FloatTech/gg"
 	"github.com/FloatTech/imgfactory"
 	"github.com/FloatTech/zbputils/control"
-	"github.com/FloatTech/zbputils/ctxext"
 	"github.com/FloatTech/zbputils/img/text"
 	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
+	"github.com/wdvxdr1123/ZeroBot/extension/rate"
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
 
 var (
-	refresh     = false
-	timeNow     = 0
-	refreshFish = func(ctx *zero.Ctx) bool {
+	storeLimiter = rate.NewManager[int64](time.Second*3, 1)
+	refresh      = false
+	timeNow      = 0
+	refreshFish  = func(ctx *zero.Ctx) bool {
 		if refresh && timeNow == time.Now().Day() {
 			return true
 		}
@@ -38,8 +39,12 @@ var (
 	}
 )
 
+func limitSet(ctx *zero.Ctx) *rate.Limiter {
+	return storeLimiter.Load(ctx.Event.UserID)
+}
+
 func init() {
-	engine.OnFullMatchGroup([]string{"钓鱼看板", "钓鱼商店"}, getdb, refreshFish).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+	engine.OnFullMatchGroup([]string{"钓鱼看板", "钓鱼商店"}, getdb, refreshFish).SetBlock(true).Limit(limitSet).Handle(func(ctx *zero.Ctx) {
 		infos, err := dbdata.getStoreInfo()
 		if err != nil {
 			ctx.SendChain(message.Text("[ERROR at store.go.2]:", err))
@@ -62,7 +67,7 @@ func init() {
 		}
 		ctx.SendChain(message.ImageBytes(pic))
 	})
-	engine.OnRegex(`^出售(`+strings.Join(thingList, "|")+`)\s*(\d*)$`, getdb, refreshFish).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+	engine.OnRegex(`^出售(`+strings.Join(thingList, "|")+`)\s*(\d*)$`, getdb, refreshFish).SetBlock(true).Limit(limitSet).Handle(func(ctx *zero.Ctx) {
 		uid := ctx.Event.UserID
 		thingName := ctx.State["regex_matched"].([]string)[1]
 		number, _ := strconv.Atoi(ctx.State["regex_matched"].([]string)[2])
@@ -288,7 +293,7 @@ func init() {
 		}
 		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("出售成功,你赚到了", pice*number, msg)))
 	})
-	engine.OnRegex(`^购买(`+strings.Join(thingList, "|")+`)\s*(\d*)$`, getdb, refreshFish).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+	engine.OnRegex(`^购买(`+strings.Join(thingList, "|")+`)\s*(\d*)$`, getdb, refreshFish).SetBlock(true).Limit(limitSet).Handle(func(ctx *zero.Ctx) {
 		uid := ctx.Event.UserID
 		numberOfPole, err := dbdata.getNumberFor(uid, "竿")
 		if err != nil {
@@ -409,14 +414,28 @@ func init() {
 		}
 		price := pice[index] * number
 
+		msg := ""
+		times := math.Min(3, number)
+		coupon, err := dbdata.useCouponAt(uid, times)
+		if err != nil {
+			logrus.Warnln(err)
+		}
+		if coupon != -1 {
+			msg += "\n(半价福利还有" + strconv.Itoa(3-coupon) + "次)"
+			price = pice[index]*(number-coupon) + (pice[index]/2)*coupon
+		} else {
+			err = dbdata.updateBuyTimeFor(uid, 1)
+			if err != nil {
+				logrus.Warnln(err)
+			}
+		}
 		curse, err := dbdata.getNumberFor(uid, "宝藏诅咒")
 		if err != nil {
 			ctx.SendChain(message.Text("[ERROR at store.go.9.3]:", err))
 			return
 		}
-		msg := ""
 		if curse != 0 {
-			msg = "\n(你身上绑定了" + strconv.Itoa(curse) + "层诅咒)"
+			msg += "\n(你身上绑定了" + strconv.Itoa(curse) + "层诅咒)"
 			price = price * (100 + 10*curse) / 100
 		}
 
@@ -464,14 +483,6 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.12]:", err))
 			return
 		}
-		msg = ""
-		ok, err = dbdata.updateBuffFor(uid, false)
-		if err != nil {
-			logrus.Warnln(err)
-		} else if ok {
-			msg = "\n(半价福利已使用1次)"
-			price /= 2
-		}
 		err = wallet.InsertWalletOf(uid, -price)
 		if err != nil {
 			ctx.SendChain(message.Text("[ERROR at store.go.13]:", err))
@@ -513,13 +524,7 @@ func init() {
 				logrus.Warnln(err)
 			}
 		}
-		if !ok {
-			_, err = dbdata.updateBuffFor(uid, true)
-			if err != nil {
-				logrus.Warnln(err)
-			}
-		}
-		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("购买成功,花费了", price, msg)))
+		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("你用", price, "购买了", number, thingName)))
 	})
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	fcext "github.com/FloatTech/floatbox/ctxext"
+	"github.com/FloatTech/floatbox/math"
 	sql "github.com/FloatTech/sqlite"
 	ctrl "github.com/FloatTech/zbpctrl"
 	"github.com/FloatTech/zbputils/control"
@@ -96,16 +97,16 @@ type storeDiscount struct {
 type buffInfo struct {
 	ID       int64
 	Duration int64
-	Buff0    int // Coupon
-	Buff1    int // 暂定
-	Buff2    int // 暂定
-	Buff3    int // 暂定
-	Buff4    int // 暂定
-	Buff5    int // 暂定
-	Buff6    int // 暂定
-	Buff7    int // 暂定
-	Buff8    int // 暂定
-	Buff9    int // 暂定
+	BuyTimes int `db:"Buff0"` // 购买次数
+	Coupon   int `db:"Buff1"` // 优惠卷
+	Buff2    int `db:"Buff2"` // 暂定
+	Buff3    int `db:"Buff3"` // 暂定
+	Buff4    int `db:"Buff4"` // 暂定
+	Buff5    int `db:"Buff5"` // 暂定
+	Buff6    int `db:"Buff6"` // 暂定
+	Buff7    int `db:"Buff7"` // 暂定
+	Buff8    int `db:"Buff8"` // 暂定
+	Buff9    int `db:"Buff9"` // 暂定
 }
 
 var (
@@ -712,28 +713,38 @@ func (sql *fishdb) updateStoreInfo(thingInfo store) (err error) {
 	return sql.db.Insert("store", &thingInfo)
 }
 
-// 更新buff add==true buff0++ if buff0=20 buff1=3
-func (sql *fishdb) updateBuffFor(uid int64, add bool) (ok bool, err error) {
-	ok = true
+// 更新购买次数
+func (sql *fishdb) updateBuyTimeFor(uid int64, add int) (err error) {
 	sql.Lock()
 	defer sql.Unlock()
 	userInfo := buffInfo{ID: uid}
 	err = sql.db.Create("buff", &userInfo)
 	if err != nil {
-		return false, err
+		return err
 	}
 	_ = sql.db.Find("buff", &userInfo, "where ID = "+strconv.FormatInt(uid, 10))
-	if add {
-		userInfo.Buff0++
-		if userInfo.Buff0 > 20 {
-			userInfo.Buff0 -= 20
-			userInfo.Buff1 = 3
-		}
+	userInfo.BuyTimes += add
+	if userInfo.BuyTimes > 20 {
+		userInfo.BuyTimes -= 20
+		userInfo.Coupon = 3
 	}
-	if !add && userInfo.Buff1 > 0 {
-		userInfo.Buff1--
-	} else {
-		ok = false
+	return sql.db.Insert("buff", &userInfo)
+}
+
+// 使用优惠卷
+func (sql *fishdb) useCouponAt(uid int64, times int) (int, error) {
+	useTimes := -1
+	sql.Lock()
+	defer sql.Unlock()
+	userInfo := buffInfo{ID: uid}
+	err := sql.db.Create("buff", &userInfo)
+	if err != nil {
+		return useTimes, err
 	}
-	return ok, sql.db.Insert("buff", &userInfo)
+	_ = sql.db.Find("buff", &userInfo, "where ID = "+strconv.FormatInt(uid, 10))
+	if userInfo.Coupon > 0 {
+		useTimes = math.Min(userInfo.Coupon, times)
+		userInfo.Coupon -= useTimes
+	}
+	return useTimes, sql.db.Insert("buff", &userInfo)
 }

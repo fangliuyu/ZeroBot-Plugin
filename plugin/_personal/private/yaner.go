@@ -23,7 +23,7 @@ func init() {
 			time.Sleep(time.Second * 1)
 			ctx.SendChain(message.Text(
 				[]string{
-					nickname + "在窥屏哦",
+					"嗨~" + nickname + "在窥屏哦",
 					"我在听",
 					"请问找" + nickname + "有什么事吗",
 					"？怎么了",
@@ -37,8 +37,8 @@ func init() {
 				return // 最多戳11次
 			}
 			nickname := zero.BotConfig.NickName[1]
-			switch rand.Intn(11) {
-			case 0:
+			switch {
+			case rand.Intn(11) < 3:
 				time.Sleep(time.Second * 1)
 				ctx.SendChain(message.Poke(ctx.Event.UserID))
 				ctx.SendChain(randText(
@@ -47,20 +47,13 @@ func init() {
 					"来自"+nickname+"对大坏蛋的反击!",
 				))
 				time.Sleep(time.Second * 2)
-				ctx.SetGroupBan(
-					ctx.Event.GroupID,
-					ctx.Event.UserID, // 要禁言的人的qq
-					rand.Int63n(5),   // 要禁言的时间
-				)
-			case 1, 3, 5:
-				time.Sleep(time.Second * 1)
-				ctx.SendChain(randText(
-					"来自"+nickname+"对大坏蛋的反击!",
-					"起司偶咧!",
-					"哼!（打手）",
-					"啊啊啊啊!!!(王八拳)",
-				))
-				ctx.SendChain(message.Poke(ctx.Event.UserID))
+				if rand.Intn(100) < 50 {
+					ctx.SetGroupBan(
+						ctx.Event.GroupID,
+						ctx.Event.UserID, // 要禁言的人的qq
+						rand.Int63n(5)+1, // 要禁言的时间
+					)
+				}
 			default:
 				time.Sleep(time.Second * 1)
 				ctx.SendChain(randText(
@@ -79,8 +72,8 @@ func init() {
 				nickname := zero.BotConfig.NickName[1]
 				if rand.Intn(2) == 0 {
 					ctx.SendChain(randText(
-						nickname+"..."+nickname+"觉得不行",
-						nickname+"..."+nickname+"觉得可以！"))
+						"emmm..."+nickname+"..."+nickname+"觉得不行",
+						"emmm..."+nickname+"..."+nickname+"觉得可以！"))
 				} else {
 					ctx.SendChain(randImage("Yes.jpg", "No.jpg"))
 				}
