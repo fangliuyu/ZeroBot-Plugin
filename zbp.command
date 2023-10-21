@@ -1,3 +1,3 @@
-cd /Users/liuyu.fang/Documents/robot/ZeroBot-Plugin
+cd /Users/liuyu.fang/Desktop/robot/ZeroBot-Plugin
 
-/Users/liuyu.fang/Documents/robot/ZeroBot-Plugin/run.sh
+./run.sh

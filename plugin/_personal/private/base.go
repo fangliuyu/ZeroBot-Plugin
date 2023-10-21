@@ -28,7 +28,7 @@ var engine = control.Register(serviceName, &ctrl.Options[*zero.Ctx]{
 })
 
 func init() {
-	/*/ 重启
+	//*/ 重启
 	go func() {
 		process.GlobalInitMutex.Lock()
 		defer process.GlobalInitMutex.Unlock()
@@ -45,6 +45,11 @@ func init() {
 				return
 			}
 			botQQ, err := strconv.ParseInt(qqList[0], 10, 64)
+			if err != nil {
+				err = m.SetExtra(qqList[0] + ":0") // 清除缓存
+				print(err.Error())
+				return
+			}
 			gid, _ := strconv.ParseInt(qqList[1], 10, 64)
 			ctx := zero.GetBot(botQQ)
 			switch {
@@ -55,12 +60,12 @@ func init() {
 			default:
 				ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text("我回来了😊"))
 			}
-			err := m.SetExtra(qqList[0] + ":0") // 清除缓存
+			err = m.SetExtra(qqList[0] + ":0") // 清除缓存
 			if err != nil {
 				ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text(err))
 			}
 		}
-	}()*/
+	}() //*/
 	zero.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			m, ok := control.Lookup(serviceName)

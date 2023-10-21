@@ -70,6 +70,17 @@ func init() {
 	engine.OnRegex(`^出售(`+strings.Join(thingList, "|")+`)\s*(\d*)$`, getdb, refreshFish).SetBlock(true).Limit(limitSet).Handle(func(ctx *zero.Ctx) {
 		uid := ctx.Event.UserID
 		thingName := ctx.State["regex_matched"].([]string)[1]
+		if strings.Contains(thingName, "竿") {
+			times, err := dbdata.checkCanSalesFor(uid, true)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR at store.go.75]:", err))
+				return
+			}
+			if times <= 0 {
+				ctx.SendChain(message.Text("出售次数已达到上限,明天再来售卖吧"))
+				return
+			}
+		}
 		number, _ := strconv.Atoi(ctx.State["regex_matched"].([]string)[2])
 		if number == 0 || strings.Contains(thingName, "竿") {
 			number = 1
@@ -136,8 +147,7 @@ func init() {
 
 		thing = articles[index]
 		if thing.Number < number {
-			ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("背包数量不足")))
-			return
+			number = thing.Number
 		}
 
 		var pice int
@@ -183,7 +193,7 @@ func init() {
 			recordInfo := records[0]
 			numberOfRecord := recordInfo.Number
 			if thingName == "唱片" {
-				numberOfRecord--
+				numberOfRecord -= number
 			}
 			if numberOfRecord > 0 {
 				ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("是否使用唱片让价格翻倍?\n回答\"是\"或\"否\"")))
@@ -209,6 +219,9 @@ func init() {
 				}
 				if use {
 					pice *= 2
+					if thingName == "唱片" {
+						thing.Number--
+					}
 					recordInfo.Number--
 					err = dbdata.updateUserThingInfo(uid, recordInfo)
 					if err != nil {
@@ -302,6 +315,15 @@ func init() {
 		}
 		if numberOfPole > 70 {
 			ctx.SendChain(message.Text("你有", numberOfPole, "支鱼竿,大于70支的玩家不允许购买东西"))
+			return
+		}
+		buytimes, err := dbdata.checkCanSalesFor(uid, false)
+		if err != nil {
+			ctx.SendChain(message.Text("[ERROR at store.go.75]:", err))
+			return
+		}
+		if buytimes <= 0 {
+			ctx.SendChain(message.Text("购买次数已达到上限,明天再来购买吧"))
 			return
 		}
 		thingName := ctx.State["regex_matched"].([]string)[1]

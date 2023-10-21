@@ -119,9 +119,9 @@ func init() {
 				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "骂骂咧咧的走了"))
 				return
 			}
+			/****************************结算食物***********************************/
+			userInfo = userInfo.settleOfSatiety(food)
 		}
-		/****************************结算食物***********************************/
-		userInfo = userInfo.settleOfSatiety(food)
 		userInfo = userInfo.settleOfWeight()
 		switch {
 		case userInfo.Mood <= 0 && rand.Intn(100) < 10:

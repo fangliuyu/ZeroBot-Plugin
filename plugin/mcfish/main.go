@@ -95,18 +95,18 @@ type storeDiscount struct {
 // buff状态记录
 // buff0: 优惠卷
 type buffInfo struct {
-	ID       int64
-	Duration int64
-	BuyTimes int `db:"Buff0"` // 购买次数
-	Coupon   int `db:"Buff1"` // 优惠卷
-	Buff2    int `db:"Buff2"` // 暂定
-	Buff3    int `db:"Buff3"` // 暂定
-	Buff4    int `db:"Buff4"` // 暂定
-	Buff5    int `db:"Buff5"` // 暂定
-	Buff6    int `db:"Buff6"` // 暂定
-	Buff7    int `db:"Buff7"` // 暂定
-	Buff8    int `db:"Buff8"` // 暂定
-	Buff9    int `db:"Buff9"` // 暂定
+	ID        int64
+	Duration  int64
+	BuyTimes  int `db:"Buff0"` // 购买次数
+	Coupon    int `db:"Buff1"` // 优惠卷
+	SalesPole int `db:"Buff2"` // 卖鱼竿上限
+	BuyTing   int `db:"Buff3"` // 购买上限
+	Buff4     int `db:"Buff4"` // 暂定
+	Buff5     int `db:"Buff5"` // 暂定
+	Buff6     int `db:"Buff6"` // 暂定
+	Buff7     int `db:"Buff7"` // 暂定
+	Buff8     int `db:"Buff8"` // 暂定
+	Buff9     int `db:"Buff9"` // 暂定
 }
 
 var (
@@ -148,7 +148,8 @@ var (
 			"7.物品BUFF:\n-> 钓鱼佬 : 当背包名字含有'鱼'的物品数量超过100时激活,钓到物品概率提高至90%\n-> 修复大师 : 当背包鱼竿数量超过10时激活,修复物品时耐久百分百继承\n" +
 			"8.合成:\n-> 铁竿 : 3x木竿\n-> 金竿 : 3x铁竿\n-> 钻石竿 : 3x金竿\n-> 下界合金竿 : 3x钻石竿\n-> 三叉戟 : 3x下界合金竿\n注:合成成功率90%,继承附魔等级合/3的等级\n" +
 			"9.杂项:\n-> 无装备的情况下,每人最多可以购买3次100块钱的鱼竿\n-> 默认状态钓鱼上钩概率为60%(理论值!!!)\n-> 附魔的鱼竿会因附魔变得昂贵,每个附魔最高3级\n-> 三叉戟不算鱼竿,修复时可直接满耐久\n" +
-			"-> 鱼竿数量大于70的不能买东西;\n     鱼竿数量大于64的不能钓鱼;\n     每购/售10次鱼竿获得1层宝藏诅咒;\n     每购买20次物品将获得3次价格减半福利;\n     每钓鱼75次获得1本净化书",
+			"-> 鱼竿数量大于70的不能买东西;\n     鱼竿数量大于64的不能钓鱼;\n     每购/售10次鱼竿获得1层宝藏诅咒;\n     每购买20次物品将获得3次价格减半福利;\n     每钓鱼75次获得1本净化书;\n" +
+			"     每天最多只可出售5个鱼竿和购买15次物品;",
 		PublicDataFolder: "McFish",
 	}).ApplySingle(ctxext.DefaultSingle)
 	getdb = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
@@ -747,4 +748,29 @@ func (sql *fishdb) useCouponAt(uid int64, times int) (int, error) {
 		userInfo.Coupon -= useTimes
 	}
 	return useTimes, sql.db.Insert("buff", &userInfo)
+}
+
+// 检测上限
+func (sql *fishdb) checkCanSalesFor(uid int64, sales bool) (int, error) {
+	residue := 0
+	sql.Lock()
+	defer sql.Unlock()
+	userInfo := buffInfo{ID: uid}
+	err := sql.db.Create("buff", &userInfo)
+	if err != nil {
+		return residue, err
+	}
+	_ = sql.db.Find("buff", &userInfo, "where ID = "+strconv.FormatInt(uid, 10))
+	if time.Now().Day() != time.Unix(userInfo.Duration, 0).Day() {
+		userInfo.SalesPole = 0
+		userInfo.BuyTing = 0
+	}
+	if sales && userInfo.SalesPole < 5 {
+		residue = 5 - userInfo.SalesPole
+		userInfo.SalesPole++
+	} else if userInfo.BuyTing < 15 {
+		residue = 15 - userInfo.BuyTing
+		userInfo.BuyTing++
+	}
+	return residue, sql.db.Insert("buff", &userInfo)
 }

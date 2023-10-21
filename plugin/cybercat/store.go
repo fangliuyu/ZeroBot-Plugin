@@ -89,9 +89,7 @@ func init() {
 			for zhName := range catBreeds {
 				nameMap = append(nameMap, zhName)
 			}
-			if rand.Intn(100) >= 90 {
-				nameMap = append(nameMap, "猫娘")
-			}
+			nameMap = append(nameMap, "猫娘")
 			nameList := make([]int, 0, 5)
 			for i := 0; i < 5; i++ {
 				nameList = append(nameList, rand.Intn(len(nameMap)))

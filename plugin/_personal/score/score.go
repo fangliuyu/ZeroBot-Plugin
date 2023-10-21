@@ -78,6 +78,10 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
+		err = os.MkdirAll(cachePath+"other/", 0755)
+		if err != nil {
+			panic(err)
+		}
 	}()
 	getdb := fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
 		scoredata.db.DBPath = engine.DataFolder() + "score.db"
@@ -295,6 +299,20 @@ func initPic() (picFile string, err error) {
 	mu.Lock()
 	defer mu.Unlock()
 	err = file.DownloadTo(parsed.Pic[0], picFile)
+	if err != nil {
+		logrus.Warnln("[score] 下载图片失败,将从下载其他二次元图片:", err)
+		return otherPic()
+	}
+	return picFile, nil
+}
+
+// 下载图片
+func otherPic() (picFile string, err error) {
+	apiList := []string{"http://81.70.100.130/api/DmImgS.php", "http://81.70.100.130/api/DmImg.php", "http://81.70.100.130/api/acgimg.php"}
+	picFile = "other/" + time.Now().Format("20060102150405000") + ".jpeg"
+	mu.Lock()
+	defer mu.Unlock()
+	err = file.DownloadTo(apiList[rand.Intn(len(apiList))], picFile)
 	if err != nil {
 		logrus.Warnln("[score] 下载图片失败,将从本地抽取:", err)
 		return randFile(3)
