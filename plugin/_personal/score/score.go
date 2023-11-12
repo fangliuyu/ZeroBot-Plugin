@@ -53,7 +53,7 @@ type userdata struct {
 	Picname    string // `签到图片`
 }
 
-const scoreMax = 1200
+const scoreMax = 1415
 
 var (
 	mu        sync.RWMutex
@@ -523,12 +523,13 @@ func getLevel(count int) (int, int) {
 	case count > scoreMax:
 		return len(levelrank) - 1, scoreMax
 	default:
-		for k, i := 1, 10; i <= scoreMax; i += (k * 10) * scoreMax / 460 {
+		i := 10
+		for k := 1; k < len(levelrank); i += (k * 10) * scoreMax / 460 {
 			if count < i {
 				return k, i
 			}
 			k++
 		}
+		return len(levelrank) - 1, scoreMax
 	}
-	return -1, -1
 }
