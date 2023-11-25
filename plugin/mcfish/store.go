@@ -161,6 +161,7 @@ func init() {
 		} else {
 			pice = priceList[thingName] * discountList[thingName] / 100
 		}
+		pice /= 10
 		ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("是否接受商店将以", pice*number*8/10, "收购", number, "个", thingName, "?\n回答\"是\"或\"否\"")))
 		// 等待用户下一步选择
 		recv, cancel1 := zero.NewFutureEvent("message", 999, false, zero.RegexRule(`^(是|否)$`), zero.CheckUser(ctx.Event.UserID)).Repeat()
@@ -313,8 +314,8 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.9.3]:", err))
 			return
 		}
-		if numberOfPole > 70 {
-			ctx.SendChain(message.Text("你有", numberOfPole, "支鱼竿,大于70支的玩家不允许购买东西"))
+		if numberOfPole > 50 {
+			ctx.SendChain(message.Text("你有", numberOfPole, "支鱼竿,大于50支的玩家不允许购买东西"))
 			return
 		}
 		buytimes, err := dbdata.checkCanSalesFor(uid, false)
@@ -653,7 +654,7 @@ func drawStroeInfoImage(stroeInfo []store) (picImage image.Image, err error) {
 	}
 	canvas.SetColor(color.Black)
 	textDy += textDh * 2
-	canvas.DrawStringAnchored("注:出售商品将会额外扣除20%的税收,附魔鱼竿请按实际价格", 10, textDy+10+textDh/2, 0, 0.5)
+	canvas.DrawStringAnchored("注:出售商品以一折回收并额外扣除20%的税收,附魔鱼竿请按实际价格", 10, textDy+10+textDh/2, 0, 0.5)
 
 	textDy += textH * 2
 	err = canvas.ParseFontFace(fontdata, 100)

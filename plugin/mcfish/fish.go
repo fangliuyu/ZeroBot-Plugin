@@ -22,8 +22,8 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR at store.go.9.3]:", err))
 			return
 		}
-		if numberOfPole > 64 {
-			ctx.SendChain(message.Text("你有", numberOfPole, "支鱼竿,大于64支的玩家不允许钓鱼"))
+		if numberOfPole > 30 {
+			ctx.SendChain(message.Text("你有", numberOfPole, "支鱼竿,大于30支的玩家不允许钓鱼"))
 			return
 		}
 		fishNumber := 1

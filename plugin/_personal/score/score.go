@@ -477,9 +477,9 @@ func drawimagePro(userinfo *userdata, score, add int) (data []byte, err error) {
 	canvas.DrawStringAnchored(fmt.Sprintf("LV%d", level), levelX+textW*1.2/2, 50+100+50, 0.5, 0.5)
 
 	if add == 0 {
-		canvas.DrawStringAnchored(fmt.Sprintf("已连签 %d 天    总资产: %d", userinfo.Continuous, score), float64(backDX)/2, 370-textH/2, 0.5, 0.5)
+		canvas.DrawStringAnchored(fmt.Sprintf("已连签 %d 天    总资产: %d", userinfo.Continuous, score), float64(backDX)/2+100, 370-textH/2, 0.5, 0.5)
 	} else {
-		canvas.DrawStringAnchored(fmt.Sprintf("连签 %d 天 总资产(+%d): %d", userinfo.Continuous, add+level*5, score), float64(backDX)/2, 370-textH/2, 0.5, 0.5)
+		canvas.DrawStringAnchored(fmt.Sprintf("连签 %d 天 总资产(+%d): %d", userinfo.Continuous, add+level*5, score), float64(backDX)/2+100, 370-textH/2, 0.5, 0.5)
 	}
 	// 绘制等级进度条
 	if err = canvas.ParseFontFace(data, 50); err != nil {
