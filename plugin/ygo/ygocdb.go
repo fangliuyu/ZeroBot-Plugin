@@ -70,7 +70,7 @@ type cardInfo struct {
 	} `json:"data"`
 }
 
-type box_info struct {
+type boxInfo struct {
 	Time   string
 	Number string
 	Name   string
@@ -92,8 +92,8 @@ var (
 	zipfile       = en.DataFolder() + "ygocdb.com.cards.zip"
 	verFile       = en.DataFolder() + "version.txt"
 	lastVersion   = "123"
-	lastTime      int
-	localJsonData = make(map[string]cardInfo)
+	lastTime      = 0
+	localJSONData = make(map[string]cardInfo)
 	cradList      []string
 )
 
@@ -117,7 +117,10 @@ func init() {
 			lastTime = time.Now().Day()
 			lastVersion = binary.BytesToString(data)
 			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
-			os.WriteFile(verFile, fileData, 0644)
+			err = os.WriteFile(verFile, fileData, 0644)
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			data, err := os.ReadFile(verFile)
 			if err != nil {
@@ -253,16 +256,20 @@ func init() {
 		}
 		version := binary.BytesToString(data)
 		if version != lastVersion {
-			lastTime = time.Now().Day()
-			lastVersion = version
-			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
-			os.WriteFile(verFile, fileData, 0644)
 			err := file.DownloadTo("https://ygocdb.com/api/v0/cards.zip", zipfile)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return
 			}
 			err = parsezip(zipfile)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			lastTime = time.Now().Day()
+			lastVersion = version
+			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
+			err = os.WriteFile(verFile, fileData, 0644)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return
@@ -283,16 +290,20 @@ func init() {
 		}
 		version := binary.BytesToString(data)
 		if version != lastVersion {
-			lastTime = time.Now().Day()
-			lastVersion = version
-			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
-			os.WriteFile(verFile, fileData, 0644)
 			err := file.DownloadTo("https://ygocdb.com/api/v0/cards.zip", zipfile)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false
 			}
 			err = parsezip(zipfile)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return false
+			}
+			lastTime = time.Now().Day()
+			lastVersion = version
+			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
+			err = os.WriteFile(verFile, fileData, 0644)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: ", err))
 				return false
@@ -334,7 +345,7 @@ func init() {
 		}
 		card := result.Result[0]
 		cid := strconv.Itoa(card.Cid)
-		boxList := make([]box_info, 0, 256)
+		boxList := make([]boxInfo, 0, 256)
 		switch boxType {
 		case "日版": // 请求html页面
 			res, err := http.Get("https://www.db.yugioh-card.com/yugiohdb/card_search.action?ope=2&request_locale=ja&cid=" + url.QueryEscape(cid))
@@ -352,7 +363,7 @@ func init() {
 				return
 			}
 			doc.Find(".t_body").First().Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
-				info := box_info{
+				info := boxInfo{
 					Time:   strings.TrimSpace(contentSelection.Find(".time").Text()),
 					Number: strings.TrimSpace(contentSelection.Find(".card_number").Text()),
 					Name:   strings.TrimSpace(contentSelection.Find(".pack_name.flex_1").Text()),
@@ -376,7 +387,7 @@ func init() {
 				return
 			}
 			doc.Find(".t_body").First().Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
-				info := box_info{
+				info := boxInfo{
 					Time:   strings.TrimSpace(contentSelection.Find(".time").Text()),
 					Number: strings.TrimSpace(contentSelection.Find(".card_number").Text()),
 					Name:   strings.TrimSpace(contentSelection.Find(".pack_name.flex_1").Text()),
@@ -400,7 +411,7 @@ func init() {
 			// 	return
 			// }
 			// doc.Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
-			// 	info := box_info{
+			// 	info := boxInfo{
 			// 		Time:   strings.TrimSpace(contentSelection.Find(".time").First().Text()),
 			// 		Number: strings.TrimSpace(contentSelection.Find(".card_number").First().Text()),
 			// 		Name:   strings.TrimSpace(contentSelection.Find("class='pack_name flex_1'").First().Text()),
@@ -534,12 +545,12 @@ func parsezip(zipFile string) error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(data, &localJsonData)
+	err = json.Unmarshal(data, &localJSONData)
 	if err != nil {
 		return err
 	}
 	cradList = []string{}
-	for key := range localJsonData {
+	for key := range localJSONData {
 		cradList = append(cradList, key)
 	}
 	return nil
@@ -549,7 +560,7 @@ func drawCard() cardInfo {
 	data := cardInfo{}
 	max := len(cradList)
 	if max > 0 {
-		data = localJsonData[cradList[rand.Intn(max)]]
+		data = localJSONData[cradList[rand.Intn(max)]]
 	}
 	return data
 }
