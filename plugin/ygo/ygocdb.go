@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"archive/zip"
@@ -93,6 +94,7 @@ var (
 	verFile       = en.DataFolder() + "version.txt"
 	lastVersion   = "123"
 	lastTime      = 0
+	lock          = sync.Mutex{}
 	localJSONData = make(map[string]cardInfo)
 	cradList      []string
 )
@@ -281,6 +283,8 @@ func init() {
 
 	})
 	en.OnFullMatchGroup([]string{"分享卡片", "/ys"}, func(ctx *zero.Ctx) bool {
+		lock.Lock()
+		defer lock.Unlock()
 		if time.Now().Day() == lastTime {
 			return true
 		}
