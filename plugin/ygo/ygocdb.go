@@ -280,7 +280,6 @@ func init() {
 			return
 		}
 		ctx.SendChain(message.At(ctx.Event.UserID), message.Text("没发现更新内容"))
-
 	})
 	en.OnFullMatchGroup([]string{"分享卡片", "/ys"}, func(ctx *zero.Ctx) bool {
 		lock.Lock()
@@ -571,7 +570,6 @@ func drawCard() cardInfo {
 
 // 绘制图片
 func drawimage(info cardInfo) (data []byte, err error) {
-
 	byteData, err := web.GetData(picherf + strconv.Itoa(info.ID) + ".jpg")
 	if err != nil {
 		return
