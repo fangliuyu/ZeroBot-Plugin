@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	fcext "github.com/FloatTech/floatbox/ctxext"
@@ -16,7 +15,6 @@ import (
 	"github.com/FloatTech/floatbox/math"
 	"github.com/FloatTech/gg"
 	"github.com/FloatTech/imgfactory"
-	sql "github.com/FloatTech/sqlite"
 	ctrl "github.com/FloatTech/zbpctrl"
 	control "github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
@@ -25,27 +23,9 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
 
-const (
-	semurl = "https://www.ygo-sem.cn/"
-	ua     = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Mobile Safari/537.36"
-)
-
-type carddb struct {
-	db *sql.Sqlite
-	sync.RWMutex
-}
-
-type punish struct {
-	GroupID  int64 // 群ID
-	LastTime int64 // 时间
-	Value    int   // 惩罚值
-}
-
 var (
-	carddatas = &carddb{
-		db: &sql.Sqlite{},
-	}
-	types = map[string]func(*imgfactory.Factory) ([]byte, error){
+	gameroom = make(map[int64]roominfo)
+	types    = map[string]func(*imgfactory.Factory) ([]byte, error){
 		"黑边":  setBack,
 		"反色":  setBlur,
 		"马赛克": setMark,
@@ -97,6 +77,20 @@ func init() {
 			panic(err)
 		}
 	}()
+	zero.OnFullMatch("/重启猜卡游戏", zero.OnlyGroup, zero.AdminPermission, getdb).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		for groupID, gameinfo := range gameroom {
+			if gameinfo == (roominfo{}) {
+				continue
+			}
+			err := carddatas.saveRoomInfo(gameinfo)
+			if err != nil {
+				ctx.SendGroupMessage(groupID, message.Text("[猜卡游戏发生意外,将在3s后重启插件]:", err))
+				continue
+			}
+			ctx.SendGroupMessage(groupID, message.Text("[error]:猜卡游戏发生意外,将在3s后重启插件"))
+		}
+		os.Exit(0)
+	})
 	engine.OnRegex("^(黑边|反色|马赛克|旋转|切图)?猜卡游戏$", zero.OnlyGroup, getdb, func(ctx *zero.Ctx) bool {
 		subTime, ok := carddatas.checkGroup(ctx.Event.GroupID)
 		if !ok {
@@ -107,41 +101,71 @@ func init() {
 	}).SetBlock(true).Limit(ctxext.LimitByGroup).Handle(func(ctx *zero.Ctx) {
 		ctx.SendChain(message.Text("正在准备题目,请稍等"))
 		var (
-			length     int
 			semdata    gameCardInfo
+			length     int
 			picFile    string
 			err        error
 			answerName string
+			msg        string
 		)
-		semdata, picFile, err = getSemData()
-		if err != nil {
-			semdata, err = carddatas.pick()
+		groupinfo, ok := gameroom[ctx.Event.GroupID]
+		if !ok {
+			groupinfo = carddatas.loadRoomInfo(ctx.Event.GroupID)
+		}
+		if groupinfo == (roominfo{}) {
+			semdata, err = getSemData()
+			if err != nil || semdata == (gameCardInfo{}) {
+				semdata, err = carddatas.pick()
+			}
 			if err != nil {
 				ctx.SendChain(message.Text("[ERROR]", err))
 				return
 			}
-			picFile = semdata.PicFile
+			msg = "请回答下图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏"
+		} else {
+			semdata, err = carddatas.load(groupinfo.GameCard)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]", err))
+				return
+			}
+			msg = "检测到上局游戏意外脱出,已重新加载"
 		}
 		answerName = semdata.Name
 		length = math.Ceil(len([]rune(answerName)), 4)
-		picFile = cachePath + picFile
+		if file.IsNotExist(cachePath + semdata.Name + ".jpg") {
+			semdata, err = carddatas.reInsertPic(semdata)
+			if err != nil {
+				ctx.SendChain(message.Text(semdata.Name+"卡图丢失\n[ERROR]", err))
+				return
+			}
+		}
+		picFile = cachePath + semdata.Name + ".jpg"
 		// 对卡图做处理
-		pictrue, err := randPicture(picFile, ctx.State["regex_matched"].([]string)[1])
+		mode, pictrue, err := randPicture(picFile, ctx.State["regex_matched"].([]string)[1])
 		if err != nil {
 			ctx.SendChain(message.Text("[ERROR]", picFile, " ", err))
 			return
 		}
+		groupinfo = roominfo{
+			GroupID:     ctx.Event.GroupID,
+			GameCard:    answerName,
+			Gametype:    mode,
+			LastTime:    time.Now().Unix(),
+			Worry:       1,
+			TickCount:   0,
+			AnswerCount: 0,
+		}
 		// 进行猜卡环节
-		ctx.SendChain(message.Text("请回答下图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏"), message.ImageBytes(pictrue))
+		ctx.SendChain(message.Text(msg), message.ImageBytes(pictrue))
+		gameroom[ctx.Event.GroupID] = groupinfo
 		recv, cancel := zero.NewFutureEvent("message", 1, true, zero.RegexRule("^((我猜.+)|提示|取消)$"), zero.OnlyGroup, zero.CheckGroup(ctx.Event.GroupID)).Repeat()
 		defer cancel()
-		tick := time.NewTimer(105 * time.Second)
-		over := time.NewTimer(120 * time.Second)
-		var (
-			worry       = 1 // 错误次数
-			tickCount   = 0 // 提示次数
-			answerCount = 0 // 问答次数
-		)
+		subtime := time.Since(time.Unix(groupinfo.LastTime, 0))
+		if subtime.Seconds() > 105 {
+			subtime = 0
+		}
+		tick := time.NewTimer(105*time.Second - subtime)
+		over := time.NewTimer(120*time.Second - subtime)
 		for {
 			select {
 			case <-tick.C:
@@ -150,17 +174,20 @@ func init() {
 			case <-over.C:
 				tick.Stop()
 				over.Stop()
-				err := carddatas.loadpunish(ctx.Event.GroupID, worry)
+				err := carddatas.loadpunish(ctx.Event.GroupID, groupinfo.Worry)
 				if err == nil {
-					err = errors.New("惩罚值+" + strconv.Itoa(worry))
+					err = errors.New("惩罚值+" + strconv.Itoa(groupinfo.Worry))
 				}
 				msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
 					message.Text("时间超时,游戏结束\n卡名是:\n", answerName, "\n"),
 					message.Image("file:///"+file.BOTPATH+"/"+picFile),
-					message.Text("\n", err)))
+					message.Text("\n", err, "\n(如果插件卡死管理员发送\"/重启猜卡游戏\"[实验性])")))
 				if msgID.ID() == 0 {
 					ctx.SendChain(message.Text("图片发送失败,可能被风控\n答案是:", answerName))
 				}
+				mu.Lock()
+				delete(gameroom, ctx.Event.GroupID)
+				mu.Unlock()
 				return
 			case c := <-recv:
 				time.Sleep(time.Millisecond * time.Duration(10+rand.Intn(50)))
@@ -182,10 +209,10 @@ func init() {
 					}
 					tick.Stop()
 					over.Stop()
-					worry = math.Max(worry, 6)
-					err := carddatas.loadpunish(ctx.Event.GroupID, worry)
+					groupinfo.Worry = math.Max(groupinfo.Worry, 6)
+					err := carddatas.loadpunish(ctx.Event.GroupID, groupinfo.Worry)
 					if err == nil {
-						err = errors.New("惩罚值+" + strconv.Itoa(worry))
+						err = errors.New("惩罚值+" + strconv.Itoa(groupinfo.Worry))
 					}
 					msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
 						message.Text("游戏已取消\n卡名是:\n", answerName, "\n"),
@@ -194,25 +221,28 @@ func init() {
 					if msgID.ID() == 0 {
 						ctx.SendChain(message.Text("图片发送失败,可能被风控\n答案是:", answerName))
 					}
+					mu.Lock()
+					delete(gameroom, ctx.Event.GroupID)
+					mu.Unlock()
 					return
-				case answer == "提示" && tickCount > 3:
+				case answer == "提示" && groupinfo.TickCount > 3:
 					tick.Reset(105 * time.Second)
 					over.Reset(120 * time.Second)
 					ctx.Send(message.ReplyWithMessage(msgID, message.Text("已经没有提示了哦,加油啊")))
 					continue
 				case answer == "提示":
-					worry++
+					groupinfo.Worry++
 					tick.Reset(105 * time.Second)
 					over.Reset(120 * time.Second)
-					tips := getTips(semdata, tickCount)
-					tickCount++
+					tips := getTips(semdata, groupinfo.TickCount)
+					groupinfo.TickCount++
 					ctx.Send(message.ReplyWithMessage(msgID, message.Text(tips)))
 				case strings.Contains(answerName, answer):
 					tick.Stop()
 					over.Stop()
-					err := carddatas.loadpunish(ctx.Event.GroupID, worry)
+					err := carddatas.loadpunish(ctx.Event.GroupID, groupinfo.Worry)
 					if err == nil {
-						err = errors.New("惩罚值+" + strconv.Itoa(worry))
+						err = errors.New("惩罚值+" + strconv.Itoa(groupinfo.Worry))
 					}
 					msgID := ctx.Send(message.ReplyWithMessage(msgID,
 						message.Text("太棒了,你猜对了!\n卡名是:\n", answerName, "\n"),
@@ -221,13 +251,16 @@ func init() {
 					if msgID.ID() == 0 {
 						ctx.SendChain(message.Text("图片发送失败,可能被风控\n答案是:", answerName))
 					}
+					mu.Lock()
+					delete(gameroom, ctx.Event.GroupID)
+					mu.Unlock()
 					return
-				case answerCount >= 5:
+				case groupinfo.AnswerCount >= 5:
 					tick.Stop()
 					over.Stop()
-					err := carddatas.loadpunish(ctx.Event.GroupID, worry)
+					err := carddatas.loadpunish(ctx.Event.GroupID, groupinfo.Worry)
 					if err == nil {
-						err = errors.New("惩罚值+" + strconv.Itoa(worry))
+						err = errors.New("惩罚值+" + strconv.Itoa(groupinfo.Worry))
 					}
 					msgID := ctx.Send(message.ReplyWithMessage(msgID,
 						message.Text("次数到了,很遗憾没能猜出来\n卡名是:\n", answerName, "\n"),
@@ -236,13 +269,19 @@ func init() {
 					if msgID.ID() == 0 {
 						ctx.SendChain(message.Text("图片发送失败,可能被风控\n答案是:", answerName))
 					}
+					mu.Lock()
+					delete(gameroom, ctx.Event.GroupID)
+					mu.Unlock()
 					return
 				default:
-					worry++
-					answerCount++
+					groupinfo.Worry++
+					groupinfo.AnswerCount++
 					tick.Reset(105 * time.Second)
 					over.Reset(120 * time.Second)
-					ctx.Send(message.ReplyWithMessage(msgID, message.Text("答案不对哦,还有"+strconv.Itoa(6-answerCount)+"次回答机会,加油啊~")))
+					ctx.Send(message.ReplyWithMessage(msgID, message.Text("答案不对哦,还有"+strconv.Itoa(6-groupinfo.AnswerCount)+"次回答机会,加油啊~")))
+					mu.Lock()
+					gameroom[ctx.Event.GroupID] = groupinfo
+					mu.Unlock()
 				}
 			}
 		}
@@ -250,10 +289,10 @@ func init() {
 }
 
 // 随机选择
-func randPicture(picFile string, mode string) ([]byte, error) {
+func randPicture(picFile string, mode string) (string, []byte, error) {
 	pic, err := gg.LoadImage(picFile)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	dst := imgfactory.Size(pic, 256*5, 256*5)
 	dstfunc, ok := types[mode]
@@ -262,9 +301,11 @@ func randPicture(picFile string, mode string) ([]byte, error) {
 		for mane := range types {
 			modes = append(modes, mane)
 		}
-		dstfunc = types[modes[rand.Intn(len(modes))]]
+		mode = modes[rand.Intn(len(modes))]
+		dstfunc = types[mode]
 	}
-	return dstfunc(dst)
+	picbytes, err := dstfunc(dst)
+	return mode, picbytes, err
 }
 
 // 获取黑边
@@ -436,62 +477,4 @@ func getTips(cardData gameCardInfo, quitCount int) string {
 		}
 		return textrand[rand.Intn(len(textrand))]
 	}
-}
-
-func (sql *carddb) insert(dbInfo gameCardInfo) error {
-	sql.Lock()
-	defer sql.Unlock()
-	err := sql.db.Create("cards", &gameCardInfo{})
-	if err == nil {
-		return sql.db.Insert("cards", &dbInfo)
-	}
-	return err
-}
-
-func (sql *carddb) pick() (dbInfo gameCardInfo, err error) {
-	sql.RLock()
-	defer sql.RUnlock()
-	err = sql.db.Create("cards", &gameCardInfo{})
-	if err == nil {
-		err = sql.db.Pick("cards", &dbInfo)
-	}
-	return
-}
-
-func (sql *carddb) loadpunish(gid int64, i int) error {
-	sql.Lock()
-	defer sql.Unlock()
-	err := sql.db.Create("punish", &punish{})
-	if err == nil {
-		var groupInfo punish
-		_ = sql.db.Find("punish", &groupInfo, "where GroupID = "+strconv.FormatInt(gid, 10))
-		groupInfo.GroupID = gid
-		groupInfo.LastTime = time.Now().Unix()
-		groupInfo.Value += i
-		return sql.db.Insert("punish", &groupInfo)
-	}
-	return err
-}
-
-func (sql *carddb) checkGroup(gid int64) (float64, bool) {
-	sql.Lock()
-	defer sql.Unlock()
-	err := sql.db.Create("punish", &punish{})
-	if err != nil {
-		return 0, true
-	}
-	var groupInfo punish
-	_ = sql.db.Find("punish", &groupInfo, "where GroupID = "+strconv.FormatInt(gid, 10))
-	if groupInfo.LastTime > 0 {
-		subTime := time.Since(time.Unix(groupInfo.LastTime, 0)).Minutes()
-		if subTime >= 30 {
-			groupInfo.LastTime = time.Now().Unix()
-			groupInfo.Value = 0
-			_ = sql.db.Insert("punish", &groupInfo)
-			return subTime, true
-		} else if groupInfo.Value >= 30 {
-			return subTime, false
-		}
-	}
-	return 0, true
 }

@@ -2,6 +2,7 @@
 package base
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -27,44 +28,41 @@ var engine = control.Register(serviceName, &ctrl.Options[*zero.Ctx]{
 	},
 })
 
+var botQQ int64 = 0
+
 func init() {
 	//*/ 重启
 	go func() {
 		process.GlobalInitMutex.Lock()
 		defer process.GlobalInitMutex.Unlock()
 		process.SleepAbout1sTo2s()
-		m, ok := control.Lookup(serviceName)
-		if ok {
-			var resetInfo string
-			_ = m.GetExtra(&resetInfo)
-			if resetInfo == "" {
-				return
+		zero.RangeBot(func(id int64, _ *zero.Ctx) bool {
+			ctx := zero.GetBot(-id)
+			fmt.Println("识别到机器人: ", id)
+			m, ok := control.Lookup(serviceName)
+			if ok {
+				gid := m.GetData(-id)
+				fmt.Println("启动群为: ", gid)
+				if gid == 0 {
+					return true
+				}
+				switch {
+				case gid > 0:
+					ctx.SendGroupMessage(gid, message.Text("我回来了😊"))
+				case gid < 0:
+					ctx.SendPrivateMessage(-gid, message.Text("我回来了😊"))
+				default:
+					ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text("我回来了😊"))
+				}
+				err := m.SetData(-id, 0) // 清除缓存
+				if err != nil {
+					ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text(err))
+					return false
+				}
+				botQQ = id
 			}
-			qqList := strings.Split(resetInfo, ":")
-			if len(qqList) < 2 {
-				return
-			}
-			botQQ, err := strconv.ParseInt(qqList[0], 10, 64)
-			if err != nil {
-				err = m.SetExtra(qqList[0] + ":0") // 清除缓存
-				print(err.Error())
-				return
-			}
-			gid, _ := strconv.ParseInt(qqList[1], 10, 64)
-			ctx := zero.GetBot(botQQ)
-			switch {
-			case gid > 0:
-				ctx.SendGroupMessage(gid, message.Text("我回来了😊"))
-			case gid < 0:
-				ctx.SendPrivateMessage(-gid, message.Text("我回来了😊"))
-			default:
-				ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text("我回来了😊"))
-			}
-			err = m.SetExtra(qqList[0] + ":0") // 清除缓存
-			if err != nil {
-				ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text(err))
-			}
-		}
+			return true
+		})
 	}() //*/
 	zero.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
@@ -74,7 +72,7 @@ func init() {
 				if zero.OnlyPrivate(ctx) {
 					gid = -ctx.Event.UserID
 				}
-				err := m.SetExtra(ctx.Event.RawEvent.Get("self_id").String() + ":" + strconv.FormatInt(gid, 10))
+				err := m.SetData(-botQQ, gid) // 清除缓存
 				if err != nil {
 					ctx.SendChain(message.Text(err))
 					return

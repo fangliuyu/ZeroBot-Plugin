@@ -58,6 +58,10 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
 
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"    // 今日早报
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/jiami"        // 兽语加密
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyucalendar" // 摸鱼人日历
+
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/alipayvoice" // 支付宝到账语音
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"    // b站相关
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/event"       // 好友申请群聊邀请事件处理

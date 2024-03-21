@@ -4,16 +4,45 @@ package ygosem
 import (
 	"errors"
 	"math/rand"
+	"net/url"
 	"os"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/FloatTech/floatbox/web"
+	sql "github.com/FloatTech/sqlite"
 	"github.com/wdvxdr1123/ZeroBot/utils/helper"
 )
+
+const (
+	semurl = "https://www.ygo-sem.cn/"
+	ua     = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Mobile Safari/537.36"
+)
+
+type carddb struct {
+	db *sql.Sqlite
+	sync.RWMutex
+}
+
+type roominfo struct {
+	GroupID     int64  // 群ID
+	GameCard    string // 答案
+	Gametype    string // 类型
+	LastTime    int64  // 距离上次回答时间
+	Worry       int    //错误次数
+	TickCount   int    // 提示次数
+	AnswerCount int    // 问答次数
+}
+
+type punish struct {
+	GroupID  int64 // 群ID
+	LastTime int64 // 时间
+	Value    int   // 惩罚值
+}
 
 type gameCardInfo struct {
 	Name    string // 卡名
@@ -29,14 +58,17 @@ type gameCardInfo struct {
 }
 
 var (
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	carddatas = &carddb{
+		db: &sql.Sqlite{},
+	}
 )
 
 // web获取卡片信息
-func getSemData() (cardData gameCardInfo, picFile string, err error) {
+func getSemData() (cardData gameCardInfo, err error) {
 	url := "https://www.ygo-sem.cn/Cards/Default.aspx"
 	// 请求html页面
-	body, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", url, ua, nil)
+	body, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", semurl, ua, nil)
 	if err != nil {
 		return
 	}
@@ -50,7 +82,7 @@ func getSemData() (cardData gameCardInfo, picFile string, err error) {
 	drawCard := strconv.Itoa(rand.Intn(maxnumber + 1))
 	url = "https://www.ygo-sem.cn/Cards/S.aspx?q=" + drawCard
 	// 获取卡片信息
-	body, err = web.RequestDataWith(web.NewDefaultClient(), url, "GET", url, ua, nil)
+	body, err = web.RequestDataWith(web.NewDefaultClient(), url, "GET", semurl, ua, nil)
 	if err != nil {
 		return
 	}
@@ -80,14 +112,15 @@ func getSemData() (cardData gameCardInfo, picFile string, err error) {
 		return
 	}
 	url = "https://www.ygo-sem.cn/yugioh/larg/" + picHref[0][1] + ".jpg"
-	picByte, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", url, ua, nil)
-	if err == nil {
-		mu.Lock()
-		defer mu.Unlock()
-		picFile = cardData.Name + ".jpg"
-		cardData.PicFile = picFile
-		err = os.WriteFile(cachePath+picFile, picByte, 0644)
+	picByte, downerr := web.RequestDataWith(web.NewDefaultClient(), url, "GET", semurl, ua, nil)
+	if downerr != nil {
+		err = downerr
+		return
 	}
+	mu.Lock()
+	defer mu.Unlock()
+	cardData.PicFile = cardData.Name + ".jpg"
+	err = os.WriteFile(cachePath+cardData.PicFile, picByte, 0644)
 	return
 }
 
@@ -111,18 +144,6 @@ func regexpmatchByRaw(rule, str string, n int) []string {
 // 正则返回第0组的数据
 func regexpmatchByZero(rule, str string) []string {
 	return regexpmatchByRaw(rule, str, 0)
-}
-
-// 获取卡名列表
-func getYGolist(body string) (cardsname map[string]string) {
-	nameList := regexpmatch(`<div class="icon_size" style="white-space: nowrap;">\s*<a href="..(.*)" target="_blank">(.*)</a>\s*</div>`, body)
-	if len(nameList) != 0 {
-		cardsname = make(map[string]string, len(nameList)*2)
-		for _, names := range nameList {
-			cardsname[names[2]] = names[1]
-		}
-	}
-	return
 }
 
 // 获取卡面信息
@@ -168,58 +189,135 @@ func getCarddata(body string) (cardata gameCardInfo) {
 	return
 }
 
-// 获取卡图
-func getPic(body string, choosepic bool) (imageBytes []byte, err error) {
+// 保存卡片信息
+func (sql *carddb) insert(dbInfo gameCardInfo) error {
+	sql.Lock()
+	defer sql.Unlock()
+	err := sql.db.Create("cards", &gameCardInfo{})
+	if err == nil {
+		return sql.db.Insert("cards", &dbInfo)
+	}
+	return err
+}
+
+// 保存卡片信息
+func (sql *carddb) reInsertPic(dbInfo gameCardInfo) (gameCardInfo, error) {
+	url := "https://www.ygo-sem.cn/Cards/S.aspx?q=" + url.QueryEscape(dbInfo.Name)
+	// 请求html页面
+	body, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", semurl, ua, nil)
+	if err != nil {
+		return dbInfo, err
+	}
 	// 获取卡图连接
-	cardpic := regexpmatchByZero(`picsCN(/\d+/\d+).jpg`, body)
+	cardpic := regexpmatchByZero(`picsCN(/\d+/\d+).jpg`, helper.BytesToString(body))
 	if len(cardpic) == 0 {
-		return nil, errors.New("getPic正则匹配失败")
+		return dbInfo, errors.New("getPic正则匹配失败")
 	}
-	choose := "larg/"
-	if !choosepic {
-		choose = "picsCN/"
+	url = "https://www.ygo-sem.cn/yugioh/larg/" + cardpic[1] + ".jpg"
+	picByte, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", semurl, ua, nil)
+	if err != nil {
+		return dbInfo, err
 	}
-	picHref := "https://www.ygo-sem.cn/yugioh/" + choose + cardpic[1] + ".jpg"
-	// 读取获取的[]byte数据
-	return web.RequestDataWith(web.NewDefaultClient(), picHref, reqconf[0], reqconf[1], reqconf[2], nil)
+	mu.Lock()
+	dbInfo.PicFile = dbInfo.Name + ".jpg"
+	err = os.WriteFile(cachePath+dbInfo.PicFile, picByte, 0644)
+	mu.Unlock()
+	if err != nil {
+		return dbInfo, err
+	}
+	sql.Lock()
+	defer sql.Unlock()
+	err = sql.db.Create("cards", &gameCardInfo{})
+	if err == nil {
+		return dbInfo, sql.db.Insert("cards", &dbInfo)
+	}
+	return dbInfo, err
 }
 
-// 获取描述
-func getDescribe(body string) string {
-	cardName := regexpmatchByZero(`<b>中文名</b> </span>&nbsp;<span class="item_box_value">\s*(?s:(.*?))\s*</span>\s*</div>`, body)
-	if len(cardName) == 0 {
-		return "查无此卡"
+// 随机抽取卡片
+func (sql *carddb) load(name string) (dbInfo gameCardInfo, err error) {
+	sql.RLock()
+	defer sql.RUnlock()
+	err = sql.db.Create("cards", &gameCardInfo{})
+	if err == nil {
+		err = sql.db.Find("cards", &dbInfo, "where Name = '"+name+"'")
 	}
-	describeinfo := regexpmatchByZero(`<span class="cont-list">\s*(?s:(.*?))\s*<span style="display:block;`, body)
-	if len(describeinfo) == 0 {
-		return "无相关描述,请期待更新"
-	}
-	getdescribe := strings.ReplaceAll(describeinfo[1], "\r\n", "")
-	getdescribe = strings.ReplaceAll(getdescribe, " ", "")
-	href1 := regexpmatch(`<span(.*?)data-content=(.*?)'>(.*?)</span>`, getdescribe)
-	if len(href1) != 0 {
-		for _, hrefv := range href1 {
-			getdescribe = strings.ReplaceAll(getdescribe, hrefv[0], "「"+hrefv[3]+"」")
-		}
-	}
-	href2 := regexpmatch(`<ahref='(.*?)'target='_blank'>(.*?)</a>`, getdescribe)
-	if len(href2) != 0 {
-		for _, hrefv := range href2 {
-			getdescribe = strings.ReplaceAll(getdescribe, hrefv[0], hrefv[2])
-		}
-	}
-	getdescribe = strings.ReplaceAll(getdescribe, "</span>", "")
-	getdescribe = strings.ReplaceAll(getdescribe, "<br/>", "\r\n")
-	getdescribe = strings.ReplaceAll(getdescribe, "<br />", "\n")
-	return "卡名：" + cardName[1] + "\n\n描述:\n" + getdescribe
+	return
 }
 
-// 获取调整
-func getAdjustment(body string) string {
-	adjustment := regexpmatch(`<div class="accordion-inner" id="adjust">\s*<table class="table">\s*<tbody>\s*<tr>\s*<td>\s*(?s:(.*?))\s*</td>`, body)
-	if len(adjustment) == 0 {
-		return "无相关调整，可以尝试搜索相关效果的旧卡"
+// 随机抽取卡片
+func (sql *carddb) pick() (dbInfo gameCardInfo, err error) {
+	sql.RLock()
+	defer sql.RUnlock()
+	err = sql.db.Create("cards", &gameCardInfo{})
+	if err == nil {
+		err = sql.db.Pick("cards", &dbInfo)
 	}
-	adjust := strings.ReplaceAll(adjustment[0][1], "<br/>", "\n")
-	return strings.ReplaceAll(adjust, "<br />", "\n")
+	return
+}
+
+// 加载惩罚值
+func (sql *carddb) loadpunish(gid int64, i int) error {
+	sql.Lock()
+	defer sql.Unlock()
+	err := sql.db.Create("punish", &punish{})
+	if err == nil {
+		var groupInfo punish
+		_ = sql.db.Find("punish", &groupInfo, "where GroupID = "+strconv.FormatInt(gid, 10))
+		groupInfo.GroupID = gid
+		groupInfo.LastTime = time.Now().Unix()
+		groupInfo.Value += i
+		return sql.db.Insert("punish", &groupInfo)
+	}
+	return err
+}
+
+// 判断惩罚值
+func (sql *carddb) checkGroup(gid int64) (float64, bool) {
+	sql.Lock()
+	defer sql.Unlock()
+	err := sql.db.Create("punish", &punish{})
+	if err != nil {
+		return 0, true
+	}
+	var groupInfo punish
+	_ = sql.db.Find("punish", &groupInfo, "where GroupID = "+strconv.FormatInt(gid, 10))
+	if groupInfo.LastTime > 0 {
+		subTime := time.Since(time.Unix(groupInfo.LastTime, 0)).Minutes()
+		if subTime >= 30 {
+			groupInfo.LastTime = time.Now().Unix()
+			groupInfo.Value = 0
+			_ = sql.db.Insert("punish", &groupInfo)
+			return subTime, true
+		} else if groupInfo.Value >= 30 {
+			return subTime, false
+		}
+	}
+	return 0, true
+}
+
+// 加载房间信息
+func (sql *carddb) loadRoomInfo(gid int64) (groupInfo roominfo) {
+	sql.Lock()
+	defer sql.Unlock()
+	err := sql.db.Create("rooms", &roominfo{})
+	if err != nil {
+		return
+	}
+	err = sql.db.Find("rooms", &groupInfo, "where GroupID = "+strconv.FormatInt(gid, 10))
+	if err == nil {
+		_ = sql.db.Del("rooms", "where GroupID = "+strconv.FormatInt(gid, 10))
+	}
+	return
+}
+
+// 保存房间信息
+func (sql *carddb) saveRoomInfo(info roominfo) error {
+	sql.Lock()
+	defer sql.Unlock()
+	err := sql.db.Create("rooms", &roominfo{})
+	if err == nil {
+		return sql.db.Insert("rooms", &info)
+	}
+	return err
 }
