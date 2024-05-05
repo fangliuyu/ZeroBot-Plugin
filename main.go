@@ -38,7 +38,7 @@ import (
 
 	_ "github.com/FloatTech/zbputils/job" // 定时指令触发器
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet" // 钱包
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet" // 钱包
 	//                               ^^^^                               //
 	//                          ^^^^^^^^^^^^^^                          //
 	//                      ^^^^^^^高优先级区^^^^^^^                      //
@@ -52,11 +52,11 @@ import (
 	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygosem" // 游戏王sem平台相关插件
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/baidufanyi" // 百度翻译
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc" // coc辅助器
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"    // 今日早报
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/jiami"        // 兽语加密

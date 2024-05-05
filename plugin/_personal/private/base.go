@@ -2,7 +2,6 @@
 package base
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -31,7 +30,7 @@ var engine = control.Register(serviceName, &ctrl.Options[*zero.Ctx]{
 var botQQ int64 = 0
 
 func init() {
-	//*/ 重启
+	/*/ 重启
 	go func() {
 		process.GlobalInitMutex.Lock()
 		defer process.GlobalInitMutex.Unlock()
@@ -66,18 +65,18 @@ func init() {
 	}() //*/
 	zero.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
-			m, ok := control.Lookup(serviceName)
-			if ok {
-				gid := ctx.Event.GroupID
-				if zero.OnlyPrivate(ctx) {
-					gid = -ctx.Event.UserID
-				}
-				err := m.SetData(-botQQ, gid) // 清除缓存
-				if err != nil {
-					ctx.SendChain(message.Text(err))
-					return
-				}
-			}
+			// m, ok := control.Lookup(serviceName)
+			// if ok {
+			// 	gid := ctx.Event.GroupID
+			// 	if zero.OnlyPrivate(ctx) {
+			// 		gid = -ctx.Event.UserID
+			// 	}
+			// 	err := m.SetData(-botQQ, gid) // 清除缓存
+			// 	if err != nil {
+			// 		ctx.SendChain(message.Text(err))
+			// 		return
+			// 	}
+			// }
 			ctx.SendChain(message.Text("好的"))
 			os.Exit(0)
 		})
@@ -88,15 +87,12 @@ func init() {
 			ctx.Send(message.UnescapeCQCodeText(ctx.State["args"].(string)))
 		})
 	// 撤回最后的发言
-	zero.OnRegex(`^\[CQ:reply,id=(.*)].*`, zero.KeywordRule("多嘴", "撤回")).SetBlock(true).
+	zero.OnRegex(`^\[CQ:reply,id=([^\]]*)\].*`, zero.KeywordRule("多嘴", "撤回")).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			// 获取消息id
 			mid := ctx.State["regex_matched"].([]string)[1]
 			// 撤回消息
-			if ctx.Event.Message[1].Data["qq"] != "" {
-				var nickname = zero.BotConfig.NickName[0]
-				ctx.SendChain(message.Text("9494,要像", nickname, "一样乖乖的才行哟~"))
-			} else {
+			if ctx.Event.Message[1].Data["qq"] == "" {
 				ctx.SendChain(message.Text("呜呜呜呜"))
 			}
 			ctx.DeleteMessage(message.NewMessageIDFromString(mid))
