@@ -91,7 +91,7 @@ type GameInfo struct {
 	Pic         []byte
 	Info        []string
 	LastTime    time.Time // 距离上次回答时间
-	Worry       int       //错误次数
+	Worry       int       // 错误次数
 	TickCount   int       // 提示次数
 	AnswerCount int       // 问答次数
 }
@@ -320,7 +320,6 @@ func init() {
 			return
 		}
 		ctx.SendChain(message.At(ctx.Event.UserID), message.Text("没发现更新内容"))
-
 	})
 	en.OnFullMatchGroup([]string{"分享卡片", "/ys"}, func(ctx *zero.Ctx) bool {
 		lock.Lock()
@@ -754,7 +753,6 @@ func drawCard() cardInfo {
 
 // 绘制图片
 func drawimage(info cardInfo) (data []byte, err error) {
-
 	byteData, err := web.GetData(picherf + strconv.Itoa(info.ID) + ".jpg")
 	if err != nil {
 		return
