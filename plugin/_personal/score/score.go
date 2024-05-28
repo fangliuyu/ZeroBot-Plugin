@@ -3,14 +3,16 @@ package score
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"math"
 	"math/rand"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +23,6 @@ import (
 	control "github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
 	"github.com/disintegration/imaging"
-	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
 
@@ -75,10 +76,6 @@ var (
 func init() {
 	go func() {
 		err := os.MkdirAll(cachePath, 0755)
-		if err != nil {
-			panic(err)
-		}
-		err = os.MkdirAll(cachePath+"other/", 0755)
 		if err != nil {
 			panic(err)
 		}
@@ -184,7 +181,7 @@ func init() {
 		}
 		ctx.SendChain(message.ImageBytes(data))
 	})
-	engine.OnPrefix("获得签到背景", zero.OnlyGroup).Limit(ctxext.LimitByGroup).SetBlock(true).
+	engine.OnPrefix("获得签到背景").Limit(ctxext.LimitByGroup).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			uid := ctx.Event.UserID
 			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
@@ -196,7 +193,14 @@ func init() {
 				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("请先签到！"))
 				return
 			}
-			ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + picFile))
+			// ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + picFile))
+
+			pic, err := os.ReadFile(picFile)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]", err))
+				return
+			}
+			ctx.SendChain(message.ImageBytes(pic))
 		})
 	engine.OnRegex(`^\/修改(\s*(\[CQ:at,qq=)?(\d+).*)?信息\s*(.*)`, zero.AdminPermission, getdb).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		changeuser := ctx.State["regex_matched"].([]string)[3]
@@ -269,55 +273,60 @@ func (sdb *score) setData(userinfo userdata) error {
 
 }
 
-type datajson struct {
-	Code string   `json:"code"`
-	Pic  []string `json:"pic"`
+// DownloadTo 下载到路径
+func DownloadTo(url, path string) (filePath string, err error) {
+	mu.Lock()
+	defer mu.Unlock()
+	resp, err := http.Get(url)
+	if err == nil {
+		var f *os.File
+		info, err1 := os.Stat(path)
+		if err1 != nil {
+			err = err1
+			return
+		}
+		if info.IsDir() {
+			if file.IsNotExist(path) {
+				err = os.Mkdir(path, 0755)
+				if err != nil {
+					return
+				}
+			}
+			fileInfo := resp.Header["Content-Disposition"][0]
+			fileName := strings.Replace(fileInfo[strings.LastIndex(fileInfo, "=")+1:], "\"", "", -1)
+			filePath = filepath.Join(path, fileName)
+		} else {
+			filePath = path
+		}
+		f, err = os.Create(filePath)
+		if err == nil {
+			_, err = io.Copy(f, resp.Body)
+			f.Close()
+		}
+		resp.Body.Close()
+	}
+	return
 }
 
 // 下载图片
 func initPic() (picFile string, err error) {
-	// defer process.SleepAbout1sTo2s()
-	data, err := web.GetData("https://img.moehu.org/pic.php?return=json&id=yu-gi-oh&num=1")
-	if err != nil { // 如果api跑路了抽本地
-		logrus.Warnln("[score] 访问api失败,将从本地抽取:", err)
-		return randFile(3)
-	}
-	parsed := datajson{}
-	err = json.Unmarshal(data, &parsed)
+	picFile, err = DownloadTo("https://img.moehu.org/pic.php", cachePath)
 	if err != nil {
-		logrus.Warnln("[score] 解析api失败,将从本地抽取:", err)
-		return randFile(3)
-	}
-	if len(parsed.Pic) == 0 {
-		return "", errors.New("no picData")
-	}
-	names := strings.Split(parsed.Pic[0], "/")
-	picFile = cachePath + names[len(names)-1]
-	if file.IsExist(picFile) {
-		return picFile, nil
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	err = file.DownloadTo(parsed.Pic[0], picFile)
-	if err != nil {
-		logrus.Warnln("[score] 下载图片失败,将从下载其他二次元图片:", err)
+		fmt.Println("[score] 下载图片失败,将从下载其他二次元图片:", err)
 		return otherPic()
 	}
-	return picFile, nil
+	return
 }
 
 // 下载图片
 func otherPic() (picFile string, err error) {
-	apiList := []string{"http://81.70.100.130/api/DmImgS.php", "http://81.70.100.130/api/DmImg.php", "http://81.70.100.130/api/acgimg.php"}
-	picFile = "other/" + time.Now().Format("20060102150405000") + ".jpeg"
-	mu.Lock()
-	defer mu.Unlock()
-	err = file.DownloadTo(apiList[rand.Intn(len(apiList))], picFile)
+	apiList := []string{"http://81.70.100.130/api/DmImg.php", "http://81.70.100.130/api/acgimg.php"}
+	picFile, err = DownloadTo(apiList[rand.Intn(len(apiList))], cachePath)
 	if err != nil {
-		logrus.Warnln("[score] 下载图片失败,将从本地抽取:", err)
+		fmt.Println("[score] 下载图片失败,将从本地抽取:", err)
 		return randFile(3)
 	}
-	return picFile, nil
+	return
 }
 
 func randFile(indexMax int) (string, error) {

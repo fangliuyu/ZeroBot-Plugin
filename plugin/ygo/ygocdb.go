@@ -83,6 +83,7 @@ type boxInfo struct {
 	Trade  string
 }
 
+// GameInfo 游戏信息
 type GameInfo struct {
 	UID         int64
 	CID         int
@@ -405,7 +406,7 @@ func init() {
 				ctx.SendChain(message.Text(serviceErr, err))
 				return
 			}
-			doc.Find(".t_body").First().Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
+			doc.Find(".t_body").First().Find(".t_row").Each(func(_ int, contentSelection *goquery.Selection) {
 				info := boxInfo{
 					Time:   strings.TrimSpace(contentSelection.Find(".time").Text()),
 					Number: strings.TrimSpace(contentSelection.Find(".card_number").Text()),
@@ -429,7 +430,7 @@ func init() {
 				ctx.SendChain(message.Text(serviceErr, err))
 				return
 			}
-			doc.Find(".t_body").First().Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
+			doc.Find(".t_body").First().Find(".t_row").Each(func(_ int, contentSelection *goquery.Selection) {
 				info := boxInfo{
 					Time:   strings.TrimSpace(contentSelection.Find(".time").Text()),
 					Number: strings.TrimSpace(contentSelection.Find(".card_number").Text()),
@@ -453,7 +454,7 @@ func init() {
 			// 	ctx.SendChain(message.Text(serviceErr, err))
 			// 	return
 			// }
-			// doc.Find(".t_row").Each(func(i int, contentSelection *goquery.Selection) {
+			// doc.Find(".t_row").Each(func(_ int, contentSelection *goquery.Selection) {
 			// 	info := boxInfo{
 			// 		Time:   strings.TrimSpace(contentSelection.Find(".time").First().Text()),
 			// 		Number: strings.TrimSpace(contentSelection.Find(".card_number").First().Text()),
@@ -918,14 +919,14 @@ func backPic(dst *imgfactory.Factory) ([]byte, error) {
 	for y := bounds.Min.Y; y <= bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x <= bounds.Max.X; x++ {
 			a := dst.Image().At(x, y)
-			color_a := color.NRGBAModel.Convert(a).(color.NRGBA)
+			colorA := color.NRGBAModel.Convert(a).(color.NRGBA)
 			b := dst.Image().At(x+1, y)
-			color_b := color.NRGBAModel.Convert(b).(color.NRGBA)
+			colorB := color.NRGBAModel.Convert(b).(color.NRGBA)
 			c := dst.Image().At(x, y+1)
-			color_c := color.NRGBAModel.Convert(c).(color.NRGBA)
-			if math.Sqrt(float64((color_a.R-color_b.R)*(color_a.R-color_b.R)+(color_a.G-color_b.G)*(color_a.G-color_b.G)+(color_a.B-color_b.B)*(color_a.B-color_b.B))) > 15 {
+			colorC := color.NRGBAModel.Convert(c).(color.NRGBA)
+			if math.Sqrt(float64((colorA.R-colorB.R)*(colorA.R-colorB.R)+(colorA.G-colorB.G)*(colorA.G-colorB.G)+(colorA.B-colorB.B)*(colorA.B-colorB.B))) > 15 {
 				returnpic.Set(x, y, color.NRGBA{0, 0, 0, 0})
-			} else if math.Sqrt(float64((color_a.R-color_c.R)*(color_a.R-color_c.R)+(color_a.G-color_c.G)*(color_a.G-color_c.G)+(color_a.B-color_c.B)*(color_a.B-color_c.B))) > 15 {
+			} else if math.Sqrt(float64((colorA.R-colorC.R)*(colorA.R-colorC.R)+(colorA.G-colorC.G)*(colorA.G-colorC.G)+(colorA.B-colorC.B)*(colorA.B-colorC.B))) > 15 {
 				returnpic.Set(x, y, color.NRGBA{0, 0, 0, 0})
 			}
 		}
@@ -1073,13 +1074,16 @@ func getTips(cardData cardInfo, quitCount int) string {
 		typeInfo, _, _ := strings.Cut(cardData.Text.Types, "]")
 		return "这是一张" + typeInfo + "],卡名是" + strconv.Itoa(len(name)) + "字的"
 	case 2:
+		if len(name) <= 1 {
+			return "这是一张" + cardData.Text.Types
+		}
 		return "卡名含有: " + string(name[rand.Intn(len(name))])
 	default:
 		text := cardData.Text.Desc + cardData.Text.Pdesc
 		textrand := []string{cardData.Text.Types}
 		listmax := regexp.MustCompile(`(「.+」)`).FindAllStringSubmatch(text, -1)
 		for _, value := range listmax {
-			text = strings.Replace(text, value[0], "「xxx」", -1)
+			text = strings.ReplaceAll(text, value[0], "「xxx」")
 		}
 		depict := strings.Split(text, "。")
 		for _, value := range depict {

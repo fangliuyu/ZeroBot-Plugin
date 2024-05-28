@@ -49,14 +49,13 @@ import (
 	//                                                                  //
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygo" // 游戏王相关插件
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygosem" // 游戏王sem平台相关插件
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/baidufanyi" // 百度翻译
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc" // coc辅助器
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"    // 今日早报
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyucalendar" // 摸鱼人日历
@@ -87,9 +86,9 @@ import (
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/yujn" // 遇见API
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/thesaurus" // 旧版词典匹配回复
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/thesaurus" // 旧版词典匹配回复
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ai_reply" // 人工智能回复
 
