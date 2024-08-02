@@ -30,11 +30,12 @@
   [![telegram](https://img.shields.io/badge/Telegram-click%20me-informational?style=flat-square&logo=telegram)](https://t.me/zerobotplugin)
 
   本项目符合 [OneBot](https://github.com/howmanybots/onebot) 标准，可基于以下项目与机器人框架/平台进行交互
-  | 项目地址 | 平台 | 核心作者 |
-  | --- | --- | --- |
-  | [go-cqhttp](https://github.com/Mrs4s/go-cqhttp) | [MiraiGo](https://github.com/Mrs4s/MiraiGo) | Mrs4s |
-  | [onebot-kotlin](https://github.com/yyuueexxiinngg/onebot-kotlin) | [Mirai](https://github.com/mamoe/mirai) | yyuueexxiinngg |
-  | [oicq/http-api](https://github.com/takayama-lily/oicq/tree/master/http-api) | [OICQ](https://github.com/takayama-lily/oicq) | takayama |
+  | 项目地址 | 平台 | 核心作者 | 备注 |
+  | :---: | :---: | :---: | :---: |
+  | [LLOneBot](https://github.com/LLOneBot/LLOneBot) | NTQQ | linyuchen | 目前推荐使用 |
+  | [go-cqhttp](https://github.com/Mrs4s/go-cqhttp) | [MiraiGo](https://github.com/Mrs4s/MiraiGo) | Mrs4s | 因签名原因不再维护 |
+  | [onebot-kotlin](https://github.com/yyuueexxiinngg/onebot-kotlin) | [Mirai](https://github.com/mamoe/mirai) | yyuueexxiinngg | 不再积极维护 |
+  | [oicq/http-api](https://github.com/takayama-lily/oicq/tree/master/http-api) | [OICQ](https://github.com/takayama-lily/oicq) | takayama | 已归档不再维护 |
 
   [![Star Trend](https://api.star-history.com/svg?repos=FloatTech/ZeroBot-Plugin&type=Timeline)](https://seladb.github.io/StarTrack-js/#/preload?r=FloatTech,ZeroBot-Plugin)
 
@@ -174,6 +175,16 @@ zerobot [-h] [-m] [-n nickname] [-t token] [-u url] [-g url] [-p prefix] [-d|w] 
   - [x] 群温度
 
   - [x] 设置温度[正整数]
+
+</details>
+<details>
+  <summary>聊天时长统计</summary>
+
+  `import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/chatcount"`
+
+  - [x] 查询水群@xxx
+
+  - [x] 查看水群排名
 
 </details>
 <details>
@@ -899,7 +910,7 @@ print("run[CQ:image,file="+j["img"]+"]")
 
   - [x] 钓鱼商店
   - [x] 购买xxx [数量]
-  - [x] 出售xxx [数量]
+  - [x] 出售[xxx [数量]|所有垃圾]
   - [x] 钓鱼背包
   - [x] 装备[xx竿|三叉戟|美西螈]
   - [x] 附魔[诱钓|海之眷顾]
@@ -1070,6 +1081,14 @@ print("run[CQ:image,file="+j["img"]+"]")
 
 </details>
 <details>
+  <summary>抽扑克</summary>
+  
+  `import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/poker"`
+
+  - [x] 抽扑克牌
+
+</details>
+<details>
   <summary>一群一天一夫一妻制群老婆</summary>
 
   `import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife"`
@@ -1133,6 +1152,14 @@ print("run[CQ:image,file="+j["img"]+"]")
   - [x] reborn
 
   - 注：本插件来源于[tgbot](https://github.com/YukariChiba/tgbot/blob/main/modules/Reborn.py)
+
+</details>
+<details>
+  <summary>打劫</summary>
+
+`import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/robbery"`
+
+- [x] 打劫[对方Q号|@对方QQ]
 
 </details>
 <details>
@@ -1489,7 +1516,7 @@ print("run[CQ:image,file="+j["img"]+"]")
 <details>
   <summary>人工智能回复</summary>
 
-  `import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/ai_reply"`
+  `import _ "github.com/FloatTech/ZeroBot-Plugin/plugin/aireply"`
 
   - [x] @Bot 任意文本(任意一句话回复)
 
@@ -1520,8 +1547,7 @@ print("run[CQ:image,file="+j["img"]+"]")
 
 ### 1. 使用稳定版/测试版 (推荐)
 
-可以前往[Release](https://github.com/FloatTech/ZeroBot-Plugin/releases)页面下载对应系统版本可执行文件，编译时开启了全部插件。您还可以选择 [gocqzbp](https://github.com/FloatTech/gocqzbp) 的 [Release](https://github.com/FloatTech/gocqzbp/releases) 或 [Package](https://github.com/FloatTech/gocqzbp/pkgs/container/gocqzbp)，它是 [Mrs4s/go-cqhttp](https://github.com/Mrs4s/go-cqhttp) 与本插件的合体。
-
+可以前往[Release](https://github.com/FloatTech/ZeroBot-Plugin/releases)页面下载对应系统版本可执行文件，编译时开启了全部插件。
 ### 2. 本地直接运行
 
 1. 下载安装最新 [Go](https://studygolang.com/dl) 环境

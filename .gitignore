@@ -9,5 +9,4 @@ zerobot
 ZeroBot-Plugin*
 *.syso
 /.direnv
-.command
-.json
+/result
