@@ -25,8 +25,8 @@ var (
 		{"push", "-u", "origin", "master"},
 	}
 	commandsOfFetch = [...][]string{
-		// {"remote", "add", "upstream", "git@github.com:FloatTech/ZeroBot-Plugin.git"},
-		// {"remote", "-v"},
+		{"remote", "add", "upstream", "git@github.com:FloatTech/ZeroBot-Plugin.git"},
+		{"remote", "-v"},
 		{"fetch", "upstream", "master"},
 		{"merge", "upstream/master"},
 		{"push", "-u", "origin", "master"},

@@ -27,8 +27,6 @@ var engine = control.Register(serviceName, &ctrl.Options[*zero.Ctx]{
 	},
 })
 
-var botQQ int64 = 0
-
 func init() {
 	/*/ 重启
 	go func() {
