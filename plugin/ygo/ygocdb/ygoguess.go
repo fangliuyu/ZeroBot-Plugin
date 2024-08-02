@@ -385,10 +385,10 @@ func randSet(dst *imgfactory.Factory) ([]byte, error) {
 
 // 拼接提示词
 func getTips(cardData cardInfo, quitCount int) string {
-	name_str := strings.ReplaceAll(cardData.CnName, " ", "")
-	name_str = strings.ReplaceAll(name_str, "-", "")
-	name_str = strings.ReplaceAll(name_str, "·", "")
-	name := []rune(name_str)
+	nameStr := strings.ReplaceAll(cardData.CnName, " ", "")
+	nameStr = strings.ReplaceAll(nameStr, "-", "")
+	nameStr = strings.ReplaceAll(nameStr, "·", "")
+	name := []rune(nameStr)
 	switch quitCount {
 	case 0:
 		typeInfo, _, _ := strings.Cut(cardData.Text.Types, "]")
@@ -405,8 +405,8 @@ func getTips(cardData cardInfo, quitCount int) string {
 		for _, value := range listmax {
 			text = strings.ReplaceAll(text, value[0], "「xxx」")
 		}
-		depict_lines := strings.Split(text, "\n")
-		for _, depicts := range depict_lines {
+		depictLines := strings.Split(text, "\n")
+		for _, depicts := range depictLines {
 			depicts = strings.ReplaceAll(depicts, "\n", "")
 			depict := strings.Split(depicts, "。")
 			for _, value := range depict {
