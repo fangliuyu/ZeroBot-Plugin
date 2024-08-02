@@ -2,9 +2,11 @@
 package base
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/FloatTech/floatbox/process"
 	ctrl "github.com/FloatTech/zbpctrl"
@@ -27,22 +29,24 @@ var engine = control.Register(serviceName, &ctrl.Options[*zero.Ctx]{
 	},
 })
 
+var mu sync.Mutex
+var gid int64
+
 func init() {
-	/*/ 重启
+	//*/ 重启
 	go func() {
 		process.GlobalInitMutex.Lock()
 		defer process.GlobalInitMutex.Unlock()
 		process.SleepAbout1sTo2s()
 		zero.RangeBot(func(id int64, _ *zero.Ctx) bool {
-			ctx := zero.GetBot(-id)
+			ctx := zero.GetBot(id)
 			fmt.Println("识别到机器人: ", id)
 			m, ok := control.Lookup(serviceName)
 			if ok {
-				gid := m.GetData(-id)
+				mu.Lock()
+				_ = m.GetExtra(&gid)
+				mu.Unlock()
 				fmt.Println("启动群为: ", gid)
-				if gid == 0 {
-					return true
-				}
 				switch {
 				case gid > 0:
 					ctx.SendGroupMessage(gid, message.Text("我回来了😊"))
@@ -51,30 +55,31 @@ func init() {
 				default:
 					ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text("我回来了😊"))
 				}
-				err := m.SetData(-id, 0) // 清除缓存
-				if err != nil {
-					ctx.SendPrivateMessage(zero.BotConfig.SuperUsers[0], message.Text(err))
-					return false
-				}
-				botQQ = id
 			}
+			mu.Lock()
+			_ = m.SetExtra(0)
+			mu.Unlock()
 			return true
 		})
 	}() //*/
 	zero.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
-			// m, ok := control.Lookup(serviceName)
-			// if ok {
-			// 	gid := ctx.Event.GroupID
-			// 	if zero.OnlyPrivate(ctx) {
-			// 		gid = -ctx.Event.UserID
-			// 	}
-			// 	err := m.SetData(-botQQ, gid) // 清除缓存
-			// 	if err != nil {
-			// 		ctx.SendChain(message.Text(err))
-			// 		return
-			// 	}
-			// }
+			m, ok := control.Lookup(serviceName)
+			if ok {
+				gid := ctx.Event.GroupID
+				if zero.OnlyPrivate(ctx) {
+					gid = -ctx.Event.UserID
+				}
+				fmt.Println("重启记录-> 机器人: ", ctx.Event.SelfID, " 启动群为: ", gid)
+
+				mu.Lock()
+				err := m.SetExtra(&gid)
+				mu.Unlock()
+				if err != nil {
+					ctx.SendChain(message.Text(err))
+					return
+				}
+			}
 			ctx.SendChain(message.Text("好的"))
 			os.Exit(0)
 		})
