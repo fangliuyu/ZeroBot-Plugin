@@ -152,7 +152,7 @@ func init() {
 				}
 			}
 			for i, info := range cocInfo.Attribute {
-				max := info.MaxValue - info.MinValue
+				attributeMax := info.MaxValue - info.MinValue
 				negative := -1
 				if info.MinValue < 0 {
 					negative = 1
@@ -161,7 +161,7 @@ func init() {
 				for i := 0; i < 3; i++ {
 					value += rand.Intn(6) + 1
 				}
-				value = max*value*5/100 + negative*info.MinValue
+				value = attributeMax*value*5/100 + negative*info.MinValue
 				cocInfo.Attribute[i].Value = value
 			}
 			err = savePanel(cocInfo, gid, uid)
