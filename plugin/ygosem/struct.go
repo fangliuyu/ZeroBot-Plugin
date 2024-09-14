@@ -33,7 +33,7 @@ type roominfo struct {
 	GameCard    string // 答案
 	Gametype    string // 类型
 	LastTime    int64  // 距离上次回答时间
-	Worry       int    //错误次数
+	Worry       int    // 错误次数
 	TickCount   int    // 提示次数
 	AnswerCount int    // 问答次数
 }
