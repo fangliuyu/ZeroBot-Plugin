@@ -142,6 +142,112 @@ func init() {
 			panic(err)
 		}
 	}()
+	en.OnRegex(`^查卡\s?(.*)`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		ctxtext := ctx.State["regex_matched"].([]string)[1]
+		if ctxtext == "" {
+			ctx.SendChain(message.Text("你是想查询「空手假象」吗？"))
+			return
+		}
+		data, err := web.GetData(api + url.QueryEscape(ctxtext))
+		if err != nil {
+			ctx.SendChain(message.Text(serviceErr, err))
+			return
+		}
+		var result searchResult
+		err = json.Unmarshal(data, &result)
+		if err != nil {
+			ctx.SendChain(message.Text(serviceErr, err))
+			return
+		}
+		maxpage := len(result.Result)
+		switch {
+		case maxpage == 0:
+			ctx.SendChain(message.Text("没有找到相关的卡片额"))
+			return
+		case maxpage == 1:
+			cardtextout := cardtext(result, 0)
+			ctx.SendChain(message.Image(picherf+strconv.Itoa(result.Result[0].ID)+".jpg"), message.Text(cardtextout))
+			return
+		}
+		var listName []string
+		var listid []int
+		for _, v := range result.Result {
+			listName = append(listName, strconv.Itoa(len(listName))+"."+v.CnName)
+			listid = append(listid, v.ID)
+		}
+		var (
+			currentPage = 10
+			nextpage    = 0
+		)
+		if maxpage < 10 {
+			currentPage = maxpage
+		}
+		ctx.SendChain(message.Text("找到", strconv.Itoa(maxpage), "张相关卡片,当前显示以下卡名：\n",
+			strings.Join(listName[:currentPage], "\n"),
+			"\n————————————\n输入对应数字获取卡片信息,",
+			"\n或回复“取消”、“下一页”指令"))
+		recv, cancel := zero.NewFutureEvent("message", 999, false, zero.RegexRule(`(取消)|(下一页)|\d+`), zero.OnlyGroup, zero.CheckUser(ctx.Event.UserID)).Repeat()
+		after := time.NewTimer(20 * time.Second)
+		for {
+			select {
+			case <-after.C:
+				cancel()
+				ctx.Send(
+					message.ReplyWithMessage(ctx.Event.MessageID,
+						message.Text("等待超时,搜索结束"),
+					),
+				)
+				return
+			case e := <-recv:
+				nextcmd := e.Event.Message.String()
+				switch nextcmd {
+				case "取消":
+					cancel()
+					after.Stop()
+					ctx.Send(
+						message.ReplyWithMessage(ctx.Event.MessageID,
+							message.Text("用户取消,搜索结束"),
+						),
+					)
+					return
+				case "下一页":
+					after.Reset(20 * time.Second)
+					if maxpage < 11 {
+						continue
+					}
+					nextpage++
+					if nextpage*10 >= maxpage {
+						nextpage = 0
+						currentPage = 10
+						ctx.SendChain(message.Text("已是最后一页，返回到第一页"))
+					} else if nextpage == maxpage/10 {
+						currentPage = maxpage % 10
+					}
+					ctx.SendChain(message.Text("找到", strconv.Itoa(maxpage), "张相关卡片,当前显示以下卡名：\n",
+						strings.Join(listName[nextpage*10:nextpage*10+currentPage], "\n"),
+						"\n————————————————\n输入对应数字获取卡片信息,",
+						"\n或回复“取消”、“下一页”指令"))
+				default:
+					cardint, err := strconv.Atoi(nextcmd)
+					switch {
+					case err != nil:
+						after.Reset(20 * time.Second)
+						ctx.SendChain(message.At(ctx.Event.UserID), message.Text("请输入正确的序号"))
+					default:
+						if cardint < nextpage*10+currentPage {
+							cancel()
+							after.Stop()
+							cardtextout := cardtext(result, cardint)
+							ctx.SendChain(message.Image(picherf+strconv.Itoa(listid[cardint])+".jpg"), message.Text(cardtextout))
+							return
+						}
+						after.Reset(20 * time.Second)
+						ctx.SendChain(message.At(ctx.Event.UserID), message.Text("请输入正确的序号"))
+					}
+				}
+			}
+		}
+	})
 	en.OnRegex(`^/yd(p|s|b)\s?(.*)`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		function := ctx.State["regex_matched"].([]string)[1]
 		ctxtext := ctx.State["regex_matched"].([]string)[2]
@@ -287,7 +393,7 @@ func init() {
 		ctx.SendChain(message.At(ctx.Event.UserID), message.Text("没发现更新内容"))
 
 	})
-	en.OnFullMatchGroup([]string{"分享卡片", "/ys"}, func(ctx *zero.Ctx) bool {
+	en.OnFullMatchGroup([]string{"分享卡片", "/ys", "随机一卡"}, func(ctx *zero.Ctx) bool {
 		lock.Lock()
 		defer lock.Unlock()
 		if time.Now().Day() == lastTime {
@@ -428,7 +534,7 @@ func init() {
 			// 	}
 			// 	boxList = append(boxList, info)
 			// })
-			ctx.SendChain(message.Text("简中卡盒为动态网页,本人能力有限,暂不支持"))
+			ctx.SendChain(message.Text("暂不支持,TDB"))
 			return
 		}
 		number := len(boxList)

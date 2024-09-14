@@ -14,6 +14,7 @@ import (
 
 	"github.com/FloatTech/floatbox/file"
 	zbmath "github.com/FloatTech/floatbox/math"
+	"github.com/FloatTech/floatbox/process"
 	"github.com/FloatTech/imgfactory"
 	ctrl "github.com/FloatTech/zbpctrl"
 	control "github.com/FloatTech/zbputils/control"
@@ -23,10 +24,12 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	"github.com/FloatTech/gg"
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // GameInfo 游戏信息
 type GameInfo struct {
+	MID         any
 	UID         int64
 	CID         int
 	Name        string
@@ -45,17 +48,60 @@ var (
 		Brief:            "游戏王猜卡游戏",
 		Help:             "- 猜卡游戏\n- 我猜xxx",
 	}).ApplySingle(single.New(
-		single.WithKeyFn(func(ctx *zero.Ctx) int64 { return ctx.Event.GroupID }),
+		single.WithKeyFn(func(ctx *zero.Ctx) int64 {
+			return ctx.Event.GroupID
+		}),
 		single.WithPostFn[int64](func(ctx *zero.Ctx) {
 			ctx.Break()
-			ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("已经有正在进行的游戏...")))
+			if ctx.ExtractPlainText() == "猜卡游戏" {
+				ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("已经有正在进行的游戏...")))
+			} else {
+				ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID, message.Text("你抢答慢了")))
+			}
 		}),
 	))
 )
 
 func init() {
-	engine.OnRegex("^(黑边|反色|马赛克|旋转|切图)?猜卡游戏$", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+	go func() {
+		process.GlobalInitMutex.Lock()
+		defer process.GlobalInitMutex.Unlock()
+		var ctx *zero.Ctx
+		zero.RangeBot(func(id int64, _ *zero.Ctx) bool {
+			ctx = zero.GetBot(id)
+			return true
+		})
+		for {
+			time.Sleep(time.Second)
+			gameRoom.Range(func(key, value any) bool {
+				gid := key.(int64)
+				info := value.(GameInfo)
+				sin := time.Since(info.LastTime).Seconds()
+				switch {
+				case sin > 120:
+					gameRoom.Delete(gid)
+					picPath := cachePath + strconv.Itoa(info.CID) + ".jpg"
+					pic, err := os.ReadFile(picPath)
+					if err != nil {
+						ctx.SendChain(message.Text("[ERROR]", err))
+						return true
+					}
+					msgID := ctx.SendGroupMessage(gid, message.ReplyWithMessage(info.MID,
+						message.Text("时间超时,游戏结束\n卡名是:\n", info.Name, "\n"),
+						message.ImageBytes(pic)))
+					if msgID == 0 {
+						ctx.SendGroupMessage(gid, message.Text("时间超时,游戏结束\n图片发送失败,可能被风控\n答案是:", info.Name))
+					}
+				case sin >= 105 && sin < 106:
+					ctx.SendGroupMessage(gid, message.Text("还有15s作答时间"))
+				}
+				return true
+			})
+		}
+	}()
+	engine.OnFullMatch("猜卡游戏", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByGroup).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
+		ctx_mid := ctx.Event.MessageID
 		info, ok := gameRoom.Load(gid)
 		if ok {
 			gameInfo := info.(GameInfo)
@@ -86,6 +132,7 @@ func init() {
 			return
 		}
 		gameInfo := GameInfo{
+			MID:      ctx_mid,
 			UID:      ctx.Event.UserID,
 			CID:      data.ID,
 			Name:     data.CnName,
@@ -94,18 +141,11 @@ func init() {
 			Info:     []string{getTips(data, 0), getTips(data, 1), getTips(data, 2)},
 		}
 		gameRoom.Store(gid, gameInfo)
-		picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
-		pic, err := os.ReadFile(picPath)
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]", err))
-			return
-		}
-		length := zbmath.Ceil(len([]rune(gameInfo.Name)), 4)
 		mid := ctx.SendChain(message.ImageBytes(gameInfo.Pic))
 		if mid.ID() != 0 {
 			ctx.SendChain(message.Text("请回答该图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏"))
 		}
-		// 进行猜卡环节
+		/* 进行猜卡环节
 		recv, cancel := zero.NewFutureEvent("message", 1, true, zero.RegexRule("^((我猜.+)|提示|取消)$"), zero.OnlyGroup, zero.CheckGroup(ctx.Event.GroupID)).Repeat()
 		defer cancel()
 		subtime := time.Since(gameInfo.LastTime)
@@ -116,22 +156,7 @@ func init() {
 		over := time.NewTimer(120*time.Second - subtime)
 		for {
 			select {
-			case <-tick.C:
-				tick.Stop()
-				ctx.SendChain(message.Text("还有15s作答时间"))
-			case <-over.C:
-				tick.Stop()
-				over.Stop()
-				msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
-					message.Text("时间超时,游戏结束\n卡名是:\n", gameInfo.Name, "\n"),
-					message.ImageBytes(pic)))
-				if msgID.ID() == 0 {
-					ctx.SendChain(message.Text("时间超时,游戏结束\n图片发送失败,可能被风控\n答案是:", gameInfo.Name))
-				}
-				defer gameRoom.Delete(gid)
-				return
 			case c := <-recv:
-				time.Sleep(time.Millisecond * time.Duration(10+rand.Intn(50)))
 				msgID := c.Event.MessageID
 				answer := c.Event.Message.String()
 				_, after, ok := strings.Cut(answer, "我猜")
@@ -200,7 +225,113 @@ func init() {
 					over.Reset(120 * time.Second)
 					ctx.Send(message.ReplyWithMessage(msgID, message.Text("答案不对哦,还有"+strconv.Itoa(6-gameInfo.AnswerCount)+"次回答机会,加油啊~")))
 				}
+			case <-tick.C:
+				tick.Stop()
+				ctx.SendChain(message.Text("还有15s作答时间"))
+			case <-over.C:
+				tick.Stop()
+				over.Stop()
+				msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
+					message.Text("时间超时,游戏结束\n卡名是:\n", gameInfo.Name, "\n"),
+					message.ImageBytes(pic)))
+				if msgID.ID() == 0 {
+					ctx.SendChain(message.Text("时间超时,游戏结束\n图片发送失败,可能被风控\n答案是:", gameInfo.Name))
+				}
+				defer gameRoom.Delete(gid)
+				return
 			}
+		} //*/
+	})
+
+	engine.OnRegex("^((我猜.+)|提示|取消)$", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+		gid := ctx.Event.GroupID
+		info, ok := gameRoom.Load(gid)
+		if !ok {
+			return
+		}
+		gameInfo := info.(GameInfo)
+		length := zbmath.Ceil(len([]rune(removePunctuation(gameInfo.Name))), 4)
+
+		msgID := ctx.Event.MessageID
+		answer := ctx.Event.Message.String()
+		_, after, ok := strings.Cut(answer, "我猜")
+		if ok {
+			if len([]rune(removePunctuation(after))) < length {
+				ctx.Send(message.ReplyWithMessage(msgID, message.Text("请输入", length, "字以上")))
+				return
+			}
+			answer = after
+		}
+		gameInfo.LastTime = time.Now()
+		switch {
+		case answer == "取消":
+			if ctx.Event.UserID != gameInfo.UID {
+				ctx.Send(message.ReplyWithMessage(msgID, message.Text("你无权限取消")))
+				return
+			}
+			defer gameRoom.Delete(gid)
+			picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
+			pic, err := os.ReadFile(picPath)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]", err))
+				return
+			}
+			gameInfo.Worry = zbmath.Max(gameInfo.Worry, 6)
+			msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
+				message.Text("游戏已取消\n卡名是:\n", gameInfo.Name, "\n"),
+				message.ImageBytes(pic)))
+			if msgID.ID() == 0 {
+				ctx.SendChain(message.Text("游戏已取消\n图片发送失败,可能被风控\n答案是:", gameInfo.Name))
+			}
+			return
+		case answer == "提示" && gameInfo.TickCount > 2:
+			ctx.Send(message.ReplyWithMessage(msgID, message.Text("已经没有提示了哦,加油啊")))
+			return
+		case answer == "提示":
+			// gameInfo.Worry++
+			ctx.Send(message.ReplyWithMessage(msgID, message.Text(gameInfo.Info[gameInfo.TickCount])))
+			gameInfo.TickCount++
+			gameRoom.Store(gid, gameInfo)
+			return
+		case gameInfo.AnswerCount >= 5:
+			defer gameRoom.Delete(gid)
+			picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
+			pic, err := os.ReadFile(picPath)
+			if err != nil {
+				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来.\n答案是:", gameInfo.Name, "\n[ERROR]", err))
+				return
+			}
+			msgID := ctx.Send(message.ReplyWithMessage(msgID,
+				message.Text("次数到了,很遗憾没能猜出来\n卡名是:\n", gameInfo.Name, "\n"),
+				message.ImageBytes(pic)))
+			if msgID.ID() == 0 {
+				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来\n图片发送失败,可能被风控\n答案是:", gameInfo.Name))
+			}
+			return
+		default:
+			diff := matchCard(gameInfo.Name, answer)
+			if diff == 0 {
+				gameInfo.Worry++
+				gameInfo.AnswerCount++
+				ctx.Send(message.ReplyWithMessage(msgID, message.Text("答案不对哦,还有"+strconv.Itoa(6-gameInfo.AnswerCount)+"次回答机会,加油啊~")))
+				gameRoom.Store(gid, gameInfo)
+				return
+			}
+			defer gameRoom.Delete(gid)
+			matchNum := diff * 100 / len([]rune(gameInfo.Name))
+			picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
+			pic, err := os.ReadFile(picPath)
+			if err != nil {
+				ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", matchNum, "%)\n答案是:", gameInfo.Name, "\n[ERROR]", err))
+				return
+			}
+			msgID := ctx.Send(message.ReplyWithMessage(msgID,
+				message.Text("太棒了,你猜对了!\n(答案完整度:", matchNum, "%)\n卡名是:\n", gameInfo.Name, "\n"),
+				message.ImageBytes(pic)))
+			if msgID.ID() == 0 {
+				ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", matchNum, "%)\n图片发送失败,可能被风控\n答案是:", gameInfo.Name))
+			}
+			return
 		}
 	})
 }
@@ -401,7 +532,7 @@ func getTips(cardData cardInfo, quitCount int) string {
 	default:
 		text := cardData.Text.Desc + cardData.Text.Pdesc
 		textrand := []string{cardData.Text.Types}
-		listmax := regexp.MustCompile(`(「.+」)`).FindAllStringSubmatch(text, -1)
+		listmax := regexp.MustCompile(`(「[^」]*」)`).FindAllStringSubmatch(text, -1)
 		for _, value := range listmax {
 			text = strings.ReplaceAll(text, value[0], "「xxx」")
 		}
@@ -423,4 +554,37 @@ func getTips(cardData cardInfo, quitCount int) string {
 		}
 		return textrand[rand.Intn(len(textrand))]
 	}
+}
+
+func matchCard(cardName, text string) int {
+	an := strings.ToLower(removePunctuation(text))
+	if an == "" {
+		return 0
+	}
+	cn := strings.ToLower(removePunctuation(cardName))
+	if strings.Contains(cn, an) {
+		return len([]rune(text))
+	}
+	dmp := diffmatchpatch.New()
+	diffs := dmp.DiffMain(cardName, text, false)
+	matched := 0
+	for _, diff := range diffs {
+		if diff.Type == diffmatchpatch.DiffEqual {
+			matched += len([]rune(diff.Text))
+		}
+	}
+	if matched >= len([]rune(cardName))*3/4 {
+		return matched
+	}
+	return 0
+}
+
+func removePunctuation(text string) string {
+	punctuations := ` ·~!@#$%^&*()-_+={}[]|\;:"<>,./?`
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune(punctuations, r) {
+			return -1
+		}
+		return r
+	}, text)
 }

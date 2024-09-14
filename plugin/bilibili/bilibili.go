@@ -120,7 +120,12 @@ func init() {
 			today := time.Now().Format("20060102")
 			drawedFile := cachePath + id + today + "vupLike.png"
 			if file.IsExist(drawedFile) {
-				ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
+				pic, err := os.ReadFile(file.BOTPATH + "/" + drawedFile)
+				if err != nil {
+					ctx.SendChain(message.Text("[ERROR]", err))
+					return
+				}
+				ctx.SendChain(message.ImageBytes(pic))
 				return
 			}
 			u, err := bz.GetMemberCard(id)
@@ -266,13 +271,9 @@ func init() {
 				ctx.SendChain(message.ImageBytes(data))
 				return
 			}
-			_, err = imgfactory.WriteTo(canvas.Image(), f)
-			_ = f.Close()
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return
-			}
-			ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
+			imgfactory.WriteTo(canvas.Image(), f)
+			f.Close()
+			ctx.SendChain(message.ImageBytes(data))
 		})
 
 	engine.OnRegex(`^查弹幕\s?(\S{1,25})\s?(\d*)$`, getPara).SetBlock(true).Handle(func(ctx *zero.Ctx) {
@@ -305,6 +306,15 @@ func init() {
 		}
 		today := time.Now().Format("20060102150415")
 		drawedFile := cachePath + id + today + "vupLike.png"
+		if file.IsExist(drawedFile) {
+			pic, err := os.ReadFile(file.BOTPATH + "/" + drawedFile)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]", err))
+				return
+			}
+			ctx.SendChain(message.ImageBytes(pic))
+			return
+		}
 		facePath := cachePath + id + "vupFace" + path.Ext(u.Face)
 		backX := 500
 		backY := 500
@@ -530,13 +540,9 @@ func init() {
 			ctx.SendChain(message.ImageBytes(data))
 			return
 		}
-		_, err = imgfactory.WriteTo(nim, f)
-		_ = f.Close()
-		if err != nil {
-			ctx.SendChain(message.Text("ERROR: ", err))
-			return
-		}
-		ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + drawedFile))
+		imgfactory.WriteTo(nim, f)
+		f.Close()
+		ctx.SendChain(message.ImageBytes(data))
 	})
 
 	engine.OnRegex(`^设置b站cookie?\s+(.*)$`, zero.SuperUserPermission).SetBlock(true).
