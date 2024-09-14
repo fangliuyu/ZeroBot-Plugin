@@ -2,6 +2,7 @@ package base
 
 import (
 	"math/rand"
+	"strconv"
 	"time"
 
 	"github.com/FloatTech/floatbox/file"
@@ -79,6 +80,31 @@ func init() {
 				}
 			}
 		})
+	engine.OnRegex(`^(\.|。)(r|R)([1-9]\d*)?\s*(d|D)?\s*([1-9]\d*)?( (.*))?$`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		defaultDice := 100
+		if ctx.State["regex_matched"].([]string)[5] != "" {
+			defaultDice, _ = strconv.Atoi(ctx.State["regex_matched"].([]string)[5])
+		}
+		times := 1
+		if ctx.State["regex_matched"].([]string)[3] != "" {
+			times, _ = strconv.Atoi(ctx.State["regex_matched"].([]string)[3])
+		}
+		msg := make(message.Message, 0, 3+times)
+		msg = append(msg, message.Reply(ctx.Event.MessageID))
+		if ctx.State["regex_matched"].([]string)[7] != "" {
+			msg = append(msg, message.Text("因为", ctx.State["regex_matched"].([]string)[7], "进行了\n"))
+		}
+		sum := 0
+		for i := times; i > 0; i-- {
+			dice := rand.Intn(defaultDice) + 1
+			msg = append(msg, message.Text("🎲 => ", dice, diceRule(0, dice, defaultDice/2, defaultDice), "\n"))
+			sum += dice
+		}
+		if times > 1 {
+			msg = append(msg, message.Text("合计 = ", sum, diceRule(0, sum, defaultDice*times/2, defaultDice*times)))
+		}
+		ctx.Send(msg)
+	})
 }
 
 func randText(text ...string) message.MessageSegment {
@@ -87,4 +113,68 @@ func randText(text ...string) message.MessageSegment {
 func randImage(fileList ...string) message.MessageSegment {
 	name := fileList[rand.Intn(len(fileList))]
 	return message.Image("file://"+file.BOTPATH+"/"+engine.DataFolder()+name, name)
+}
+
+func diceRule(ruleType, dice, decision, maxDice int) string {
+	// 50的位置
+	halflimit := float64(maxDice) / 2
+	// 大成功值范围
+	tenStrike := float64(maxDice) * 6 / 100
+	// 成功值范围
+	limit := float64(decision)
+	// 大失败值范围
+	fiasco := float64(maxDice) * 95 / 100
+	// 骰子数
+	piece := float64(dice)
+	switch ruleType {
+	case 1:
+		switch {
+		case (piece == 1 && limit < halflimit) || (limit >= halflimit && piece < tenStrike):
+			return "(大成功!)"
+		case (piece > fiasco && limit < halflimit) || (limit >= halflimit && dice == maxDice):
+			return "(大失败!)"
+		case ((piece <= fiasco && limit < halflimit) || dice != maxDice) && piece > limit:
+			return "(失败)"
+		case piece <= limit && piece > limit/2:
+			return "(成功)"
+		case piece <= limit/2 && piece > limit/5:
+			return "(困难成功)"
+		case piece <= limit/5 && piece > 1:
+			return "(极难成功)"
+		default:
+			return ""
+		}
+	case 2:
+		switch {
+		case piece < tenStrike:
+			return "(大成功!)"
+		case piece > fiasco:
+			return "(大失败!)"
+		case piece <= fiasco && piece > limit:
+			return "(失败)"
+		case piece <= limit/2 && piece > limit/5:
+			return "(困难成功)"
+		case piece <= limit/5 && piece > 1:
+			return "(极难成功)"
+		default:
+			return "(成功)"
+		}
+	default:
+		switch {
+		case piece == 1:
+			return "(大成功!)"
+		case (piece > fiasco && limit < halflimit) || (limit >= halflimit && dice == maxDice):
+			return "(大失败!)"
+		case ((piece <= fiasco && limit < halflimit) || dice != maxDice) && piece > limit:
+			return "(失败)"
+		case piece <= limit && piece > limit/2:
+			return "(成功)"
+		case piece <= limit/2 && piece > limit/5:
+			return "(困难成功)"
+		case piece <= limit/5 && piece > 1:
+			return "(极难成功)"
+		default:
+			return ""
+		}
+	}
 }

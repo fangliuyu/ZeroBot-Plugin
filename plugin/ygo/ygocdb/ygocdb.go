@@ -624,11 +624,35 @@ func init() {
 
 func cardtext(list searchResult, cardid int) string {
 	var cardtext []string
-	cardtext = append(cardtext, "中文卡名：\n    "+list.Result[cardid].CnName)
-	if list.Result[cardid].JpName == "" {
-		cardtext = append(cardtext, "英文卡名：\n    "+list.Result[cardid].EnName)
-	} else {
-		cardtext = append(cardtext, "日文卡名：\n    "+list.Result[cardid].JpName)
+	name := "C N卡名: " + list.Result[cardid].CnName
+	cardtext = append(cardtext, name)
+	if list.Result[cardid].NwbbsN != "" {
+		name = "N W卡名: " + list.Result[cardid].NwbbsN
+		cardtext = append(cardtext, name)
+	}
+	if list.Result[cardid].CnocgN != "" {
+		name = "简中卡名: " + list.Result[cardid].CnocgN
+		cardtext = append(cardtext, name)
+	}
+	if list.Result[cardid].NwbbsN != "" {
+		name = "M D卡名: " + list.Result[cardid].MdName
+		cardtext = append(cardtext, name)
+	}
+	if list.Result[cardid].JpName != "" {
+		name = "日本卡名:"
+		if list.Result[cardid].JpRuby != "" && list.Result[cardid].JpName != list.Result[cardid].JpRuby {
+			name += "\n    " + list.Result[cardid].JpRuby
+		}
+		name += "\n    " + list.Result[cardid].JpName
+		cardtext = append(cardtext, name)
+	}
+	if list.Result[cardid].EnName != "" {
+		name = "英文卡名:\n    " + list.Result[cardid].EnName
+		cardtext = append(cardtext, name)
+	}
+	if list.Result[cardid].ScName != "" {
+		name = "其他译名: " + list.Result[cardid].ScName
+		cardtext = append(cardtext, name)
 	}
 	cardtext = append(cardtext, "卡片密码："+strconv.Itoa(list.Result[cardid].ID))
 	cardtext = append(cardtext, list.Result[cardid].Text.Types)
@@ -672,9 +696,9 @@ func parsezip(zipFile string) error {
 
 func drawCard(index ...int) cardInfo {
 	data := cardInfo{}
-	max := len(cradList)
-	if max > 0 {
-		data = localJSONData[cradList[rand.Intn(max)]]
+	pageMax := len(cradList)
+	if pageMax > 0 {
+		data = localJSONData[cradList[rand.Intn(pageMax)]]
 	}
 	i := 0
 	if len(index) > 0 {

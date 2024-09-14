@@ -56,7 +56,7 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"    // 今日早报
