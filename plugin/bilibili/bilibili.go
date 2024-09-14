@@ -271,7 +271,7 @@ func init() {
 				ctx.SendChain(message.ImageBytes(data))
 				return
 			}
-			imgfactory.WriteTo(canvas.Image(), f)
+			_, _ = imgfactory.WriteTo(canvas.Image(), f)
 			f.Close()
 			ctx.SendChain(message.ImageBytes(data))
 		})
@@ -540,7 +540,7 @@ func init() {
 			ctx.SendChain(message.ImageBytes(data))
 			return
 		}
-		imgfactory.WriteTo(nim, f)
+		_, _ = imgfactory.WriteTo(nim, f)
 		f.Close()
 		ctx.SendChain(message.ImageBytes(data))
 	})

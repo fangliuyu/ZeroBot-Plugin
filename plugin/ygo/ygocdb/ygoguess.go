@@ -101,7 +101,7 @@ func init() {
 	}()
 	engine.OnFullMatch("猜卡游戏", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByGroup).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
-		ctx_mid := ctx.Event.MessageID
+		ctxMid := ctx.Event.MessageID
 		info, ok := gameRoom.Load(gid)
 		if ok {
 			gameInfo := info.(GameInfo)
@@ -132,7 +132,7 @@ func init() {
 			return
 		}
 		gameInfo := GameInfo{
-			MID:      ctx_mid,
+			MID:      ctxMid,
 			UID:      ctx.Event.UserID,
 			CID:      data.ID,
 			Name:     data.CnName,
