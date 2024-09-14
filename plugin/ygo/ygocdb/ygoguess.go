@@ -36,7 +36,7 @@ type GameInfo struct {
 	Pic         []byte
 	Info        []string
 	LastTime    time.Time // 距离上次回答时间
-	Worry       int       //错误次数
+	Worry       int       // 错误次数
 	TickCount   int       // 提示次数
 	AnswerCount int       // 问答次数
 }
