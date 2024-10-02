@@ -31,6 +31,9 @@ schema = 3
   [mod."github.com/FloatTech/zbputils"]
     version = "v1.7.2-0.20240822065525-5ea6811ed91c"
     hash = "sha256-ouAExps1iPCcD1AmOxyhRXMBGHBDXvUGkplcnQCf3Bg="
+  [mod."github.com/PuerkitoBio/goquery"]
+    version = "v1.5.1"
+    hash = "sha256-GqxIdhuN1L3enT8pNlWm+rmkdN5uMfF8TfpxhAHhEDQ="
   [mod."github.com/RomiChan/syncx"]
     version = "v0.0.0-20240418144900-b7402ffdebc7"
     hash = "sha256-L1j1vgiwqXpF9pjMoRRlrQUHzoULisw/01plaEAwxs4="
@@ -43,6 +46,9 @@ schema = 3
   [mod."github.com/ajstarks/svgo"]
     version = "v0.0.0-20200320125537-f189e35d30ca"
     hash = "sha256-ALeRuEJN9jHjGb4wNKJcxC59vVx8Tj7hHikEGkaZZ0s="
+  [mod."github.com/andybalholm/cascadia"]
+    version = "v1.1.0"
+    hash = "sha256-mL40/Q9iXBzzMHwMomqTOpp9rnI/MRsufb5cIU1MMPg="
   [mod."github.com/antchfx/htmlquery"]
     version = "v1.3.1"
     hash = "sha256-4ZzKk7Z+vH8ytisdtcZz/Y0MbnVVhruiO/7gtUy3ouQ="
@@ -190,6 +196,9 @@ schema = 3
   [mod."github.com/rogpeppe/go-internal"]
     version = "v1.12.0"
     hash = "sha256-qvDNCe3l84/LgrA8X4O15e1FeDcazyX91m9LmXGXX6M="
+  [mod."github.com/sergi/go-diff"]
+    version = "v1.3.1"
+    hash = "sha256-XLA/BLIPuUU76yikXqIeRSXr7T7A3Uz6I27+mDxGj7w="
   [mod."github.com/shirou/gopsutil/v3"]
     version = "v3.24.4"
     hash = "sha256-ubkBxu9X4LRhI1HqkjsIShR4e8rQsuKQs4VNOIIhZCU="

@@ -170,13 +170,13 @@ func init() {
 		logrus.Infoln("[thesaurus]加载", len(chatListD), "条傲娇词库", len(chatListK), "条可爱词库")
 
 		engine.OnMessage(canmatch(tKIMO), match(chatList, seg)).
-			SetBlock(false).
+			SetBlock(true).
 			Handle(randreply(kimomap))
 		engine.OnMessage(canmatch(tDERE), match(chatListD, seg)).
-			SetBlock(false).
+			SetBlock(true).
 			Handle(randreply(sm.D))
 		engine.OnMessage(canmatch(tKAWA), match(chatListK, seg)).
-			SetBlock(false).
+			SetBlock(true).
 			Handle(randreply(sm.K))
 		engine.OnMessage(canmatch(tALPACA), func(_ *zero.Ctx) bool {
 			return alpacapiurl != "" && alpacatoken != ""
@@ -283,12 +283,17 @@ func randreply(m map[string][]string) zero.Handler {
 		val := m[key]
 		nick := zero.BotConfig.NickName[rand.Intn(len(zero.BotConfig.NickName))]
 		text := val[rand.Intn(len(val))]
-		text = strings.ReplaceAll(text, "{name}", ctx.CardOrNickName(ctx.Event.UserID))
+		userName := ctx.CardOrNickName(ctx.Event.UserID)
+		text = strings.ReplaceAll(text, "{name}", userName)
 		text = strings.ReplaceAll(text, "{me}", nick)
 		id := ctx.Event.MessageID
-		for _, t := range strings.Split(text, "{segment}") {
+		for i, t := range strings.Split(text, "{segment}") {
 			process.SleepAbout1sTo2s()
-			id = ctx.SendChain(message.Reply(id), message.Text(t))
+			if i != 0 {
+				id = ctx.SendChain(message.Reply(id), message.Text(t))
+			} else {
+				id = ctx.SendChain(message.Text(t))
+			}
 		}
 	}
 }

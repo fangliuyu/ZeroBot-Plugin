@@ -132,9 +132,6 @@ func init() {
 			}
 			/***********设置图片的大小和底色***********/
 			number := len(fianceeInfo)
-			if number > 10 {
-				number = 10
-			}
 			fontSize := 50.0
 			canvas := gg.NewContext(1150, int(170+(50+70)*float64(number)))
 			canvas.SetRGB(1, 1, 1) // 白色
@@ -162,7 +159,7 @@ func init() {
 			}
 			i := 0
 			for _, info := range fianceeInfo {
-				if i > 9 {
+				if info.Favor == 0 {
 					break
 				}
 				if info.Userinfo == "" {
@@ -304,7 +301,7 @@ func (sql *婚姻登记) getGroupFavorability(uid int64) (list favorList, err er
 	sql.RLock()
 	defer sql.RUnlock()
 	info := favorability{}
-	err = sql.db.FindFor("favorability", &info, "where Userinfo glob '*"+uidStr+"*'", func() error {
+	err = sql.db.FindFor("favorability", &info, "where Userinfo glob '*"+uidStr+"*' AND Favor > 0", func() error {
 		var target string
 		userList := strings.Split(info.Userinfo, "+")
 		switch {

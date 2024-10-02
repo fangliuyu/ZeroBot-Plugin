@@ -808,8 +808,8 @@ func (sql *fishdb) checkCanSalesFor(uid int64, sales bool) (int, error) {
 		residue = 5 - userInfo.SalesPole
 		userInfo.SalesPole++
 	} else if userInfo.BuyTing < 15 {
-		residue = 15 - userInfo.SalesPole
-		userInfo.SalesPole++
+		residue = 15 - userInfo.BuyTing
+		userInfo.BuyTing++
 	}
 	return residue, sql.db.Insert("buff", &userInfo)
 }

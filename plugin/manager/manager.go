@@ -446,7 +446,7 @@ func init() { // 插件主体
 				if err == nil {
 					ctx.SendGroupMessage(ctx.Event.GroupID, message.ParseMessageFromString(welcometocq(ctx, w.Msg)))
 				} else {
-					ctx.SendChain(message.Text("欢迎~"))
+					ctx.SendChain(message.Text("我召唤"), message.At(ctx.Event.UserID), message.Text("呈攻击状态,结束我的回合!"))
 				}
 				c, ok := ctx.State["manager"].(*ctrl.Control[*zero.Ctx])
 				if ok {
@@ -499,7 +499,7 @@ func init() { // 插件主体
 					ctx.SendGroupMessage(ctx.Event.GroupID, message.ParseMessageFromString(welcometocq(ctx, w.Msg)))
 				} else {
 					userid := ctx.Event.UserID
-					ctx.SendChain(message.Text(ctx.CardOrNickName(userid), "(", userid, ")", "离开了我们..."))
+					ctx.SendChain(message.Text(ctx.CardOrNickName(userid), "(", userid, ")", "以里侧表示从游戏中除外了!"))
 				}
 			}
 		})
