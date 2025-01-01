@@ -5,16 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math/rand"
 	"os"
-	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/console" // 更改控制台属性
 
-	"github.com/FloatTech/ZeroBot-Plugin/kanban" // 打印 banner
+	// 打印 banner
 
 	// ---------以下插件均可通过前面加 // 注释，注释后停用并不加载插件--------- //
 	// ----------------------插件优先级按顺序从高到低---------------------- //
@@ -38,7 +35,7 @@ import (
 
 	_ "github.com/FloatTech/zbputils/job" // 定时指令触发器
 
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet" // 钱包
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet" // 钱包
 	//                               ^^^^                               //
 	//                          ^^^^^^^^^^^^^^                          //
 	//                      ^^^^^^^高优先级区^^^^^^^                      //
@@ -56,43 +53,35 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/score"      // 签到
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/cybercat"             // 云养猫
 
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/coc"    // coc辅助器
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 游戏王sem平台相关插件
 
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/alipayvoice"  // 支付宝到账语音
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"     // b站相关
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"    // 今日早报
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/drawlots"     // 多功能抽签
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/event"        // 好友申请群聊邀请事件处理
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/fortune"      // 运势
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"          // 制图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github"       // 搜索GitHub仓库
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic"   // 猜歌
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/movies"       // 电影插件
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/moyucalendar" // 摸鱼人日历
-
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/alipayvoice" // 支付宝到账语音
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"    // b站相关
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/event"       // 好友申请群聊邀请事件处理
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"         // 制图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github"      // 搜索GitHub仓库
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic"  // 猜歌
-
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/music"    // 点歌
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nbnhhsh"  // 拼音首字母缩写释义工具
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife"   // 一群一天一夫一妻制群老婆
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/runcode"  // 在线运行代码
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/saucenao" // 以图搜图
-
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/setutime" // 来份涩图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/music"        // 点歌
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nbnhhsh"      // 拼音首字母缩写释义工具
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife"       // 一群一天一夫一妻制群老婆
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/runcode"      // 在线运行代码
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/saucenao"     // 以图搜图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/setutime"     // 来份涩图
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/steam"
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tracemoe" // 搜番
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wife"     // 抽老婆
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wordle"   // 猜单词
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ymgal"    // 月幕galgame
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/yujn"     // 遇见API
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wife"   // 抽老婆
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wordle" // 猜单词
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ymgal"  // 月幕galgame
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/drawlots" // 多功能抽签
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/movies"   // 电影插件
-
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/yujn" // 遇见API
-
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/thesaurus" // 旧版词典匹配回复
-
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
-
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/aireply" // 人工智能回复
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/aireply" // 人工智能回复
 
 	/*/                                                                  //
 	//                                                                  //
@@ -234,11 +223,7 @@ import (
 	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/driver"
-	"github.com/wdvxdr1123/ZeroBot/message"
-
 	// webctrl "github.com/FloatTech/zbputils/control/web"
-
-	"github.com/FloatTech/ZeroBot-Plugin/kanban/banner"
 	// -----------------------以上为内置依赖，勿动------------------------ //
 )
 
@@ -350,20 +335,22 @@ func init() {
 }
 
 func main() {
-	if !strings.Contains(runtime.Version(), "go1.2") { // go1.20之前版本需要全局 seed，其他插件无需再 seed
-		rand.Seed(time.Now().UnixNano()) //nolint: staticcheck
-	}
-	// 帮助
-	zero.OnFullMatchGroup([]string{"help", "/help", ".help", "。help", "#help", "帮助", "菜单"}, zero.OnlyToMe).SetBlock(true).
-		Handle(func(ctx *zero.Ctx) {
-			ctx.SendChain(message.Text(banner.Banner,
-				"\n————————————\n基础指令:\n",
-				"- 查看zbp公告\n- /服务列表\n- /用法[插件名称]\n- /启用[插件名称]\n- /禁用[插件名称]\n- /反馈[内容]",
-			))
-		})
-	zero.OnFullMatch("查看zbp公告", zero.OnlyToMe, zero.AdminPermission).SetBlock(true).
-		Handle(func(ctx *zero.Ctx) {
-			ctx.SendChain(message.Text(strings.ReplaceAll(kanban.Kanban(), "\t", "")))
-		})
+	/*
+		if !strings.Contains(runtime.Version(), "go1.2") { // go1.20之前版本需要全局 seed，其他插件无需再 seed
+			rand.Seed(time.Now().UnixNano()) //nolint: staticcheck
+		}
+		// 帮助
+		zero.OnFullMatchGroup([]string{"help", "/help", ".help", "。help", "#help", "帮助", "菜单"}, zero.OnlyToMe).SetBlock(true).
+			Handle(func(ctx *zero.Ctx) {
+				ctx.SendChain(message.Text(banner.Banner,
+					"\n————————————\n基础指令:\n",
+					"- 查看zbp公告\n- /服务列表\n- /用法[插件名称]\n- /启用[插件名称]\n- /禁用[插件名称]\n- /反馈[内容]",
+				))
+			})
+		zero.OnFullMatch("查看zbp公告", zero.OnlyToMe, zero.AdminPermission).SetBlock(true).
+			Handle(func(ctx *zero.Ctx) {
+				ctx.SendChain(message.Text(strings.ReplaceAll(kanban.Kanban(), "\t", "")))
+			})
+	*/
 	zero.RunAndBlock(&config.Z, process.GlobalInitMutex.Unlock)
 }
