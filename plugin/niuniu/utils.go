@@ -2,11 +2,153 @@
 package niuniu
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
 	"time"
 )
+
+func createUserInfoByProps(props string, niuniu userInfo) error {
+	var (
+		err error
+	)
+	switch props {
+	case "伟哥":
+		if niuniu.WeiGe > 0 {
+			niuniu.WeiGe--
+		} else {
+			err = errors.New("你还没有伟哥呢,不能使用")
+		}
+	case "媚药":
+		if niuniu.Philter > 0 {
+			niuniu.Philter--
+		} else {
+			err = errors.New("你还没有媚药呢,不能使用")
+		}
+	case "击剑神器":
+		if niuniu.Artifact > 0 {
+			niuniu.Artifact--
+		} else {
+			err = errors.New("你还没有击剑神器呢,不能使用")
+		}
+	case "击剑神稽":
+		if niuniu.ShenJi > 0 {
+			niuniu.ShenJi--
+		} else {
+			err = errors.New("你还没有击剑神稽呢,不能使用")
+		}
+	default:
+		err = errors.New("道具不存在")
+	}
+	return err
+}
+
+// 接收值依次是 自己和被jj用户的信息 一个包含gid和uid的字符串 道具名称
+// 返回值依次是 要发生的消息 错误信息
+func processJJuAction(myniuniu, adduserniuniu userInfo, t string, props string) (string, float64, error) {
+	var (
+		fencingResult string
+		f             float64
+		f1            float64
+		u             userInfo
+		err           error
+	)
+	v, ok := prop.Load(t)
+	u = myniuniu
+	if props != "" {
+		if props != "击剑神器" && props != "击剑神稽" {
+			return "", 0, errors.New("道具不存在")
+		}
+		if err = createUserInfoByProps(props, myniuniu); err != nil {
+			return "", 0, err
+		}
+	}
+	switch {
+	case ok && v.Count > 1 && time.Since(v.TimeLimit) < time.Minute*8:
+		fencingResult, f, f1 = fencing(myniuniu.Length, adduserniuniu.Length)
+		myniuniu.Length = f
+		errMessage := fmt.Sprintf("你使用道具次数太快了，此次道具不会生效，等待%d再来吧", time.Minute*8-time.Since(v.TimeLimit))
+		err = errors.New(errMessage)
+	case myniuniu.ShenJi-u.ShenJi != 0:
+		fencingResult, f, f1 = myniuniu.useShenJi(adduserniuniu.Length)
+		myniuniu.Length = f
+		updateMap(t, true)
+	case myniuniu.Artifact-u.Artifact != 0:
+		fencingResult, f, f1 = myniuniu.useArtifact(adduserniuniu.Length)
+		myniuniu.Length = f
+		updateMap(t, true)
+	default:
+		fencingResult, f, f1 = fencing(myniuniu.Length, adduserniuniu.Length)
+		myniuniu.Length = f
+	}
+	return fencingResult, f1, err
+}
+func processNiuniuAction(t string, niuniu userInfo, props string) (string, error) {
+	var (
+		messages string
+		f        float64
+		u        userInfo
+		err      error
+	)
+	load, ok := prop.Load(t)
+	u = niuniu
+	if props != "" {
+		if props != "伟哥" && props != "媚药" {
+			return "", errors.New("道具不存在")
+		}
+
+		if err = createUserInfoByProps(props, niuniu); err != nil {
+			return "", err
+		}
+	}
+	switch {
+	case ok && load.Count > 1 && time.Since(load.TimeLimit) < time.Minute*8:
+		messages, f = generateRandomStingTwo(niuniu.Length)
+		niuniu.Length = f
+		errMessage := fmt.Sprintf("你使用道具次数太快了，此次道具不会生效，等待%d再来吧", time.Minute*8-time.Since(load.TimeLimit))
+		err = errors.New(errMessage)
+
+	case niuniu.WeiGe-u.WeiGe != 0:
+		messages, f = niuniu.useWeiGe()
+		niuniu.Length = f
+		updateMap(t, true)
+
+	case niuniu.Philter-u.Philter != 0:
+		messages, f = niuniu.usePhilter()
+		niuniu.Length = f
+		updateMap(t, true)
+
+	default:
+		messages, f = generateRandomStingTwo(niuniu.Length)
+		niuniu.Length = f
+	}
+	return messages, err
+}
+
+func purchaseItem(n int, info userInfo) (*userInfo, int, error) {
+	var (
+		money int
+		err   error
+	)
+	switch n {
+	case 1:
+		money = 300
+		info.WeiGe += 5
+	case 2:
+		money = 300
+		info.Philter += 5
+	case 3:
+		money = 500
+		info.Artifact += 2
+	case 4:
+		money = 500
+		info.ShenJi += 2
+	default:
+		err = errors.New("无效的选择")
+	}
+	return &info, money, err
+}
 
 func generateRandomStingTwo(niuniu float64) (string, float64) {
 	probability := rand.Intn(100 + 1)
@@ -31,13 +173,12 @@ func generateRandomStingTwo(niuniu float64) (string, float64) {
 				fmt.Sprintf("你突发恶疾！你的牛牛凹进去了%.2fcm！", reduce),
 				fmt.Sprintf("笑死，你因为打🦶过度导致牛牛凹进去了%.2fcm！🤣🤣🤣", reduce),
 			}), niuniu
-		} else {
-			return randomChoice([]string{
-				fmt.Sprintf("阿哦，你过度打🦶，牛牛缩短%.2fcm了呢！", reduce),
-				fmt.Sprintf("你的牛牛变长了很多，你很激动地继续打🦶，然后牛牛缩短了%.2fcm呢！", reduce),
-				fmt.Sprintf("小打怡情，大打伤身，强打灰飞烟灭！你过度打🦶，牛牛缩短了%.2fcm捏！", reduce),
-			}), niuniu
 		}
+		return randomChoice([]string{
+			fmt.Sprintf("阿哦，你过度打🦶，牛牛缩短%.2fcm了呢！", reduce),
+			fmt.Sprintf("你的牛牛变长了很多，你很激动地继续打🦶，然后牛牛缩短了%.2fcm呢！", reduce),
+			fmt.Sprintf("小打怡情，大打伤身，强打灰飞烟灭！你过度打🦶，牛牛缩短了%.2fcm捏！", reduce),
+		}), niuniu
 	}
 }
 
@@ -99,34 +240,32 @@ func generateRandomString(niuniu float64) string {
 
 // fencing 击剑对决逻辑，返回对决结果和myLength的变化值
 func fencing(myLength, oppoLength float64) (string, float64, float64) {
-	lossLimit := 0.25
 	devourLimit := 0.27
 
 	probability := rand.Intn(100) + 1
 
 	switch {
 	case oppoLength <= -100 && myLength > 0 && 10 < probability && probability <= 20:
-		oppoLength *= 0.85
-		change := math.Min(math.Abs(lossLimit*myLength), math.Abs(1.5*myLength))
+		change := hitGlue(oppoLength) + rand.Float64()*math.Log2(math.Abs(0.5*(myLength+oppoLength)))
 		myLength += change
 		return fmt.Sprintf("对方身为魅魔诱惑了你，你同化成魅魔！当前长度%.2fcm！", -myLength), -myLength, oppoLength
+
 	case oppoLength >= 100 && myLength > 0 && 10 < probability && probability <= 20:
-		oppoLength *= 0.85
 		change := math.Min(math.Abs(devourLimit*myLength), math.Abs(1.5*myLength))
 		myLength += change
-		return fmt.Sprintf("对方以牛头人的荣誉摧毁了你的牛牛！当前长度%.2fcm！", myLength-oppoLength), myLength - oppoLength, oppoLength
+		return fmt.Sprintf("对方以牛头人的荣誉摧毁了你的牛牛！当前长度%.2fcm！", myLength), myLength, oppoLength
 
 	case myLength <= -100 && oppoLength > 0 && 10 < probability && probability <= 20:
-		myLength *= 0.85
-		change := oppoLength * 0.7
+		change := hitGlue(myLength+oppoLength) + rand.Float64()*math.Log2(math.Abs(0.5*(myLength+oppoLength)))
 		oppoLength -= change
 		myLength -= change
 		return fmt.Sprintf("你身为魅魔诱惑了对方，吞噬了对方部分长度！当前长度%.2fcm！", myLength), myLength, oppoLength
 
 	case myLength >= 100 && oppoLength > 0 && 10 < probability && probability <= 20:
-		myLength *= 0.85
-		oppoLength -= 0.8 * myLength
+		myLength -= oppoLength
+		oppoLength = 0.01
 		return fmt.Sprintf("你以牛头人的荣誉摧毁了对方的牛牛！当前长度%.2fcm！", myLength), myLength, oppoLength
+
 	default:
 		return determineResultBySkill(myLength, oppoLength)
 	}
@@ -137,20 +276,16 @@ func determineResultBySkill(myLength, oppoLength float64) (string, float64, floa
 	probability := rand.Intn(100) + 1
 	winProbability := calculateWinProbability(myLength, oppoLength) * 100
 	return applySkill(myLength, oppoLength,
-		0 < probability && float64(probability) <= winProbability)
+		float64(probability) <= winProbability)
 }
 
 // calculateWinProbability 计算胜率
 func calculateWinProbability(heightA, heightB float64) float64 {
-	var pA float64
-	if heightA > heightB {
-		pA = 0.7 + 0.2*(heightA-heightB)/heightA
-	} else {
-		pA = 0.6 - 0.2*(heightB-heightA)/heightB
-	}
+	pA := 0.9
 	heightRatio := math.Max(heightA, heightB) / math.Min(heightA, heightB)
 	reductionRate := 0.1 * (heightRatio - 1)
 	reduction := pA * reductionRate
+
 	adjustedPA := pA - reduction
 	return math.Max(adjustedPA, 0.01)
 }
@@ -158,6 +293,9 @@ func calculateWinProbability(heightA, heightB float64) float64 {
 // applySkill 应用击剑技巧并生成结果
 func applySkill(myLength, oppoLength float64, increaseLength1 bool) (string, float64, float64) {
 	reduce := fence(oppoLength)
+	if reduce == 0 {
+		reduce = rand.Float64() + float64(rand.Intn(3))
+	}
 	if increaseLength1 {
 		myLength += reduce
 		oppoLength -= 0.8 * reduce
@@ -174,15 +312,30 @@ func applySkill(myLength, oppoLength float64, increaseLength1 bool) (string, flo
 	return fmt.Sprintf("对方以绝对的长度让你屈服了呢！你的长度减少%.2fcm，当前长度%.2fcm！", reduce, myLength), myLength, oppoLength
 }
 
-// fence
+// fence 根据长度计算减少的长度
 func fence(rd float64) float64 {
-	rd -= float64(time.Now().UnixNano() % 10)
-	if rd > 1000000 {
-		return rd - rand.Float64()*rd
+	r := hitGlue(rd)*2 + rand.Float64()*math.Log2(rd)
+	if rand.Intn(2) == 1 {
+		return rd - rand.Float64()*r
 	}
-	return float64(int(rd * rand.Float64()))
+	return float64(int(r * rand.Float64()))
 }
 
 func hitGlue(l float64) float64 {
-	return rand.Float64() * math.Log2(l) / 2
+	if l == 0 {
+		l = 0.1
+	}
+	l = math.Abs(l)
+	switch {
+	case l > 1 && l <= 10:
+		return rand.Float64() * math.Log2(l*2)
+	case 10 < l && l <= 100:
+		return rand.Float64() * math.Log2(l*1.5)
+	case 100 < l && l <= 1000:
+		return rand.Float64() * (math.Log10(l*1.5) * 2)
+	case l > 1000:
+		return rand.Float64() * (math.Log10(l) * 2)
+	default:
+		return rand.Float64()
+	}
 }

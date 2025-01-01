@@ -640,7 +640,7 @@ func (sql *fishdb) refreshStroeInfo() (ok bool, err error) {
 			Duration: time.Now().Unix(),
 			Name:     "净化书",
 			Type:     "article",
-			Price:    priceList["净化书"] * discountList["净化书"] / 100,
+			Price:    priceList["净化书"] * (discountList["净化书"]) / 100,
 		}
 		_ = sql.db.Find("store", &thingInfo, "where Name = '净化书'")
 		thingInfo.Number = 20
