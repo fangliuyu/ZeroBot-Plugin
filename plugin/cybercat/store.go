@@ -3,11 +3,13 @@ package cybercat
 
 import (
 	"math/rand"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/FloatTech/AnimeAPI/wallet"
+	"github.com/FloatTech/floatbox/file"
 	"github.com/FloatTech/floatbox/process"
 	"github.com/FloatTech/zbputils/ctxext"
 	zero "github.com/wdvxdr1123/ZeroBot"
@@ -67,7 +69,7 @@ func init() {
 		} else {
 			userInfo.Work++
 		}
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -85,11 +87,13 @@ func init() {
 		}
 		/*******************************************************/
 		if typeOfcat == "猫" {
-			nameMap := make([]string, 0, len(catBreeds))
-			for zhName := range catBreeds {
+			nameMap := make([]string, 0, len(typeZH2Breeds))
+			for zhName := range typeZH2Breeds {
 				nameMap = append(nameMap, zhName)
 			}
-			nameMap = append(nameMap, "猫娘")
+			if rand.Intn(100) >= 90 {
+				nameMap = append(nameMap, "猫娘")
+			}
 			nameList := make([]int, 0, 5)
 			for i := 0; i < 5; i++ {
 				nameList = append(nameList, rand.Intn(len(nameMap)))
@@ -129,7 +133,7 @@ func init() {
 			}
 		}
 		/*******************************************************/
-		picurl, _ := getPicByBreed(catBreeds[typeOfcat])
+		picurl, _ := getPicByBreed(typeZH2Breeds[typeOfcat])
 		satiety := 90 * rand.Float64() // 饱食度
 		mood := 50 + rand.Intn(50)     // 心情
 		weight := 2 + 8*rand.Float64() // 体重
@@ -192,10 +196,12 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
+		aimgfile := filepath.Join(engine.DataFolder(), "cache/"+strconv.FormatInt(ctx.Event.GroupID, 10)+"/"+uidStr+".gif")
+		_ = file.DownloadTo(userInfo.Picurl, aimgfile)
 		messageText = append(messageText, message.Text("恭喜你买了一只喵喵"))
 		ctx.Send(messageText)
 	})
@@ -251,7 +257,7 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -281,7 +287,7 @@ func init() {
 		default:
 			userInfo.Name = newName
 		}
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -310,10 +316,12 @@ func init() {
 		uidStr := strconv.FormatInt(ctx.Event.UserID, 10)
 		userInfo, _ := catdata.find(gidStr, uidStr)
 		userInfo.Picurl = ctx.State["image_url"].([]string)[0]
-		if err := catdata.insert(gidStr, userInfo); err != nil {
+		if err := catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
+		aimgfile := filepath.Join(engine.DataFolder(), "cache/"+strconv.FormatInt(ctx.Event.GroupID, 10)+"/"+uidStr+".gif")
+		_ = file.DownloadTo(userInfo.Picurl, aimgfile)
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("成功"))
 	})
 }

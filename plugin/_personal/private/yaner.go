@@ -107,10 +107,10 @@ func init() {
 	})
 }
 
-func randText(text ...string) message.MessageSegment {
+func randText(text ...string) message.Segment {
 	return message.Text(text[rand.Intn(len(text))])
 }
-func randImage(fileList ...string) message.MessageSegment {
+func randImage(fileList ...string) message.Segment {
 	name := fileList[rand.Intn(len(fileList))]
 	return message.Image("file://"+file.BOTPATH+"/"+engine.DataFolder()+name, name)
 }

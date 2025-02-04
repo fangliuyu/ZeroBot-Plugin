@@ -40,7 +40,7 @@ import (
 )
 
 type score struct {
-	db *sql.Sqlite
+	db sql.Sqlite
 	sync.RWMutex
 }
 
@@ -57,10 +57,6 @@ type userdata struct {
 const scoreMax = 1415
 
 var (
-	mu        sync.RWMutex
-	scoredata = &score{
-		db: &sql.Sqlite{},
-	}
 	/************************************10*****20******30*****40*****50******60*****70*****80******90**************/
 	/*************************2******10*****20******40*****70*****110******160******220***290*****370*******460***************/
 	levelrank = [...]string{"新手", "青铜", "白银", "黄金", "白金Ⅲ", "白金Ⅱ", "白金Ⅰ", "传奇Ⅲ", "传奇Ⅱ", "传奇Ⅰ", "决斗王"}
@@ -71,6 +67,9 @@ var (
 		Help:              "- 签到\n- 获得签到背景",
 	})
 	cachePath = engine.DataFolder() + "cache/"
+	mu        sync.RWMutex
+	dbpath    = engine.DataFolder() + "score.db"
+	scoredata = &score{db: sql.New(dbpath)}
 )
 
 func init() {
@@ -81,7 +80,6 @@ func init() {
 		}
 	}()
 	getdb := fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
-		scoredata.db.DBPath = engine.DataFolder() + "score.db"
 		err := scoredata.db.Open(time.Hour * 24)
 		if err != nil {
 			ctx.SendChain(message.Text("[init ERROR]:", err))

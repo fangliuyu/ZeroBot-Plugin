@@ -46,14 +46,39 @@ func init() {
 		case cmd && money > 0:
 			stauts = "从工作回来休息中\n	为你赚了" + strconv.Itoa(money)
 		}
-		/****************************空闲时间猫体力的减少计算***********************************/
-		food := 0.0
-		// 如果没有指定猫粮就 （1 + 猫粮/5*x ）斤猫粮
-		if ctx.State["regex_matched"].([]string)[2] != "" {
-			food, _ = strconv.ParseFloat(ctx.State["regex_matched"].([]string)[2], 64)
-		} else {
-			food = math.Max(1.0+math.Max(userInfo.Food-1, 0)/5*rand.Float64(), (100-userInfo.Satiety)*userInfo.Weight/200)
+		now := time.Now().Hour()
+		if !cmd && ((now < 6 || (now > 8 && now < 11) || (now > 14 && now < 17) || now > 21) && (userInfo.Satiety > 50 || rand.Intn(3) == 1)) {
+			if userInfo.Satiety > 50 {
+				ctx.SendChain(message.Text("猫猫拍了拍饱饱的肚子表示并不饿呢"))
+				return
+			}
+			ctx.SendChain(message.Text("猫猫只想和你一起吃传统早中晚饭咧"))
+			return
 		}
+		/****************************计算食物数量***********************************/
+		food := 0.0
+		if !cmd {
+			stauts = "刚刚的食物很美味"
+			// 如果没有指定猫粮就 （1 + 猫粮/5*x ）斤猫粮
+			if ctx.State["regex_matched"].([]string)[2] != "" {
+				food, _ = strconv.ParseFloat(ctx.State["regex_matched"].([]string)[2], 64)
+			} else {
+				food = math.Max(1.0+math.Max(userInfo.Food-1, 0)/5*rand.Float64(), (100-userInfo.Satiety)*userInfo.Weight/200)
+			}
+			switch {
+			case userInfo.Food == 0 || userInfo.Food < food:
+				ctx.SendChain(message.Reply(id), message.Text("铲屎官你已经没有足够的猫粮了"))
+				return
+			// 如果猫粮太多就只吃一点，除非太饿了
+			case food > 5 && (rand.Intn(10) < 8 || userInfo.Satiety < 30):
+				food = 5
+				stauts = "食物实在太多了!"
+			case food < 0.5:
+				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "骂骂咧咧的走了"))
+				return
+			}
+		}
+		/****************************空闲时间猫体力的减少计算***********************************/
 		subtime := 0.0
 		if userInfo.LastTime != 0 {
 			lastTime := time.Unix(userInfo.LastTime, 0)
@@ -67,7 +92,7 @@ func init() {
 				userInfo.Mood = 0
 			}
 			if rand.Intn(10) < 6 && subtime < 2 && userInfo.Satiety > 90 {
-				if err = catdata.insert(gidStr, userInfo); err != nil {
+				if err = catdata.insert(gidStr, &userInfo); err != nil {
 					ctx.SendChain(message.Text("[ERROR]:", err))
 					return
 				}
@@ -92,36 +117,12 @@ func init() {
 		}
 		/***************************整体结算，判断当前的心情是否继续************************************/
 		userInfo = userInfo.settleOfData()
-		if err = catdata.insert(gidStr, userInfo); err != nil {
-			ctx.SendChain(message.Text("[ERROR]:", err))
-			return
-		}
 		if !cmd && userInfo.Satiety > 80 && rand.Intn(100) > zbmath.Max(userInfo.Mood*2-userInfo.Mood/2, 50) {
 			ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "好像并没有心情吃东西"))
 			return
 		}
-		if !cmd && (userInfo.Satiety > 90 && rand.Intn(100) >= 30) {
-			ctx.SendChain(message.Text("猫猫拍了拍饱饱的肚子表示并不饿呢"))
-			return
-		}
-		/****************************计算食物数量***********************************/
-		if !cmd {
-			stauts = "刚刚的食物很美味"
-			switch {
-			case userInfo.Food == 0 || userInfo.Food < food:
-				ctx.SendChain(message.Reply(id), message.Text("铲屎官你已经没有足够的猫粮了"))
-				return
-			// 如果猫粮太多就只吃一点，除非太饿了
-			case food > 5 && (rand.Intn(10) < 8 || userInfo.Satiety < 30):
-				food = 5
-				stauts = "食物实在太多了!"
-			case food < 0.5:
-				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "骂骂咧咧的走了"))
-				return
-			}
-			/****************************结算食物***********************************/
-			userInfo = userInfo.settleOfSatiety(food)
-		}
+		/****************************结算食物***********************************/
+		userInfo = userInfo.settleOfSatiety(food)
 		userInfo = userInfo.settleOfWeight()
 		switch {
 		case userInfo.Mood <= 0 && rand.Intn(100) < 10:
@@ -156,7 +157,12 @@ func init() {
 		userInfo.LastTime = time.Now().Unix()
 		userInfo.Mood += int(userInfo.Satiety)/5 - int(userInfo.Weight)/10
 		userInfo = userInfo.settleOfData()
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		avatarResult, err := userInfo.avatar(ctx.Event.GroupID)
+		if err != nil {
+			ctx.SendChain(message.Text("[ERROR]:", err))
+			return
+		}
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -164,7 +170,7 @@ func init() {
 			stauts = "完全没有饱"
 		}
 		ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "当前信息如下:\n"),
-			message.Image(userInfo.Picurl),
+			message.ImageBytes(avatarResult),
 			message.Text("品种: "+userInfo.Type,
 				"\n饱食度: ", strconv.FormatFloat(userInfo.Satiety, 'f', 0, 64),
 				"\n心情: ", userInfo.Mood,
@@ -225,7 +231,7 @@ func init() {
 			workTime, _ = strconv.Atoi(ctx.State["regex_matched"].([]string)[2])
 		}
 		userInfo.Work = time.Now().Unix()*10 + int64(workTime)
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -278,7 +284,7 @@ func init() {
 			userInfo.Mood += rand.Intn(100)
 		}
 		userInfo = userInfo.settleOfData()
-		if err = catdata.insert(gidStr, userInfo); err != nil {
+		if err = catdata.insert(gidStr, &userInfo); err != nil {
 			ctx.SendChain(message.Text("[ERROR]:", err))
 			return
 		}
@@ -287,63 +293,63 @@ func init() {
 }
 
 // 饱食度结算
-func (data *catInfo) settleOfSatiety(food float64) catInfo {
-	if food > 0 && data.Satiety < 30 && rand.Intn(100) <= data.Mood/3 {
+func (inf *catInfo) settleOfSatiety(food float64) catInfo {
+	if food > 0 && inf.Satiety < 30 && rand.Intn(100) <= inf.Mood/3 {
 		food *= 4
 	}
-	data.Satiety += (food * 100 / math.Max(1, data.Weight/2))
-	return *data
+	inf.Satiety += (food * 100 / math.Max(1, inf.Weight/2))
+	return *inf
 }
 
 // 体重结算
-func (data *catInfo) settleOfWeight() catInfo {
-	if data.Weight < 0 {
-		satiety := math.Min((-data.Weight)*7, data.Satiety)
-		data.Weight += satiety
-		data.Satiety -= satiety
+func (inf *catInfo) settleOfWeight() catInfo {
+	if inf.Weight < 0 {
+		satiety := math.Min((-inf.Weight)*7, inf.Satiety)
+		inf.Weight += satiety
+		inf.Satiety -= satiety
 	}
 	switch {
-	case data.Satiety > 100:
-		data.Weight += (data.Satiety - 50) / 100
-	case data.Satiety < 0:
-		data.Weight += data.Satiety / 10
-		if data.Weight < 0 {
-			needFood := math.Min(-data.Weight*5, data.Food)
-			data.Food -= needFood
-			data.Weight += needFood / 5
+	case inf.Satiety > 100:
+		inf.Weight += (inf.Satiety - 50) / 100
+	case inf.Satiety < 0:
+		inf.Weight += inf.Satiety / 10
+		if inf.Weight < 0 {
+			needFood := math.Min(-inf.Weight*5, inf.Food)
+			inf.Food -= needFood
+			inf.Weight += needFood / 5
 		}
 	}
-	return *data
+	return *inf
 }
 
 // 整体数据结算
-func (data *catInfo) settleOfData() catInfo {
-	if data.Satiety > 100 {
-		data.Satiety = 100
-	} else if data.Satiety < 0 {
-		data.Satiety = 0
+func (inf *catInfo) settleOfData() catInfo {
+	if inf.Satiety > 100 {
+		inf.Satiety = 100
+	} else if inf.Satiety < 0 {
+		inf.Satiety = 0
 	}
-	if data.Mood > 100 {
-		data.Mood = 100
-	} else if data.Mood < 0 {
-		data.Mood = 0
+	if inf.Mood > 100 {
+		inf.Mood = 100
+	} else if inf.Mood < 0 {
+		inf.Mood = 0
 	}
-	if data.Weight < 0 {
-		data.Weight = -5
+	if inf.Weight < 0 {
+		inf.Weight = -5
 	}
-	if data.Food < 0 {
-		data.Food = 0
+	if inf.Food < 0 {
+		inf.Food = 0
 	}
-	return *data
+	return *inf
 }
 
 // 打工结算
-func (data *catInfo) settleOfWork(gid string) (int, bool) {
-	workTime := data.Work % 10
+func (inf *catInfo) settleOfWork(gid string) (int, bool) {
+	workTime := inf.Work % 10
 	if workTime <= 0 {
 		return 0, true
 	}
-	lastTime := time.Unix(data.Work/10, 0)
+	lastTime := time.Unix(inf.Work/10, 0)
 	subtime := time.Since(lastTime).Hours()
 	if subtime < float64(workTime) {
 		return 0, false
@@ -354,15 +360,15 @@ func (data *catInfo) settleOfWork(gid string) (int, bool) {
 		getFood = -(getFood + float64(workTime)*rand.Float64())
 		mood *= -3
 	}
-	data.Satiety += getFood * 100 / math.Max(1, data.Weight)
-	data.Mood += mood
-	data.Work = time.Now().Unix() * 10
-	data.LastTime = time.Unix(data.LastTime, 0).Add(time.Duration(workTime) * time.Hour).Unix()
-	if catdata.insert(gid, *data) != nil {
+	inf.Satiety += getFood * 100 / math.Max(1, inf.Weight)
+	inf.Mood += mood
+	inf.Work = time.Now().Unix() * 10
+	inf.LastTime = time.Unix(inf.LastTime, 0).Add(time.Duration(workTime) * time.Hour).Unix()
+	if catdata.insert(gid, inf) != nil {
 		return 0, true
 	}
 	getmoney := 10 + rand.Intn(10*int(workTime))
-	if wallet.InsertWalletOf(data.User, getmoney) != nil {
+	if wallet.InsertWalletOf(inf.User, getmoney) != nil {
 		return 0, true
 	}
 	return getmoney, true

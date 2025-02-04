@@ -28,6 +28,9 @@ import (
 	control "github.com/FloatTech/zbputils/control"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
+	fcext "github.com/FloatTech/floatbox/ctxext"
+	sql "github.com/FloatTech/sqlite"
+	"github.com/sirupsen/logrus"
 
 	"github.com/FloatTech/gg"
 	"github.com/FloatTech/zbputils/img/text"
@@ -38,6 +41,25 @@ const (
 	api        = "https://ygocdb.com/api/v0/?search="
 	picherf    = "https://cdn.233.momobako.com/ygopro/pics/"
 )
+
+
+// ygoDB 继承方法的存储结构
+type ygoDB struct {
+	sync.RWMutex
+	db sql.Sqlite
+}
+
+type subscribe struct {
+	GID int64
+}
+
+type groupInfo struct {
+	UID int64
+	Answers int64 // 答题数
+	FULL int64 // 满分数
+	Accuracy int64 // 答对题数
+	Integrity int64 // 完整度
+}
 
 type searchResult struct {
 	Result []cardInfo `json:"result"`
@@ -98,6 +120,56 @@ var (
 	lock          = sync.Mutex{}
 	localJSONData = make(map[string]cardInfo)
 	cradList      []string
+
+	database ygoDB
+	// 开启并检查数据库链接
+	getDB = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
+		database.db = sql.New(en.DataFolder() + "userdata.db")
+		err := database.db.Open(24*time.Hour)
+		if err != nil {
+			ctx.SendChain(message.Text(serviceErr, err))
+			return false
+		}
+		if err = database.db.Create("subscribe", &subscribe{}); err != nil {
+			ctx.SendChain(message.Text(serviceErr, err))
+			return false
+		}
+		return true
+	})
+	checkUpdate = func(ctx *zero.Ctx) bool {
+		lock.Lock()
+		defer lock.Unlock()
+		if time.Now().Day() == lastTime {
+			return true
+		}
+		data, err := web.GetData("https://ygocdb.com/api/v0/cards.zip.md5?callback=gu")
+		if err != nil {
+			ctx.SendChain(message.Text("ERROR: ", err))
+		}
+		version := binary.BytesToString(data)
+		if version != lastVersion {
+			err := file.DownloadTo("https://ygocdb.com/api/v0/cards.zip", zipfile)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return false
+			}
+			err = parsezip(zipfile)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return false
+			}
+			lastTime = time.Now().Day()
+			lastVersion = version
+			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
+			err = os.WriteFile(verFile, fileData, 0644)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return false
+			}
+			ctx.SendChain(message.Text("数据库已更新至最新"))
+		}
+		return true
+	}
 )
 
 func init() {
@@ -392,49 +464,12 @@ func init() {
 		}
 		ctx.SendChain(message.At(ctx.Event.UserID), message.Text("没发现更新内容"))
 	})
-	en.OnFullMatchGroup([]string{"分享卡片", "/ys", "随机一卡"}, func(ctx *zero.Ctx) bool {
-		lock.Lock()
-		defer lock.Unlock()
-		if time.Now().Day() == lastTime {
-			return true
-		}
-		data, err := web.GetData("https://ygocdb.com/api/v0/cards.zip.md5?callback=gu")
-		if err != nil {
-			ctx.SendChain(message.Text("ERROR: ", err))
-		}
-		version := binary.BytesToString(data)
-		if version != lastVersion {
-			err := file.DownloadTo("https://ygocdb.com/api/v0/cards.zip", zipfile)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return false
-			}
-			err = parsezip(zipfile)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return false
-			}
-			lastTime = time.Now().Day()
-			lastVersion = version
-			fileData := binary.StringToBytes(strconv.Itoa(lastTime) + "\n" + lastVersion)
-			err = os.WriteFile(verFile, fileData, 0644)
-			if err != nil {
-				ctx.SendChain(message.Text("ERROR: ", err))
-				return false
-			}
-			ctx.SendChain(message.Text("数据库已更新至最新"))
-		}
-		return true
-	}).SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		// 分享卡片
+	en.OnFullMatchGroup([]string{"/ys", "随机一卡"}, checkUpdate).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		data := drawCard()
 		pic, err := drawimage(data)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return
-		}
-		if ctx.ExtractPlainText() == "分享卡片" {
-			ctx.SendChain(message.Text("今日分享卡片:"))
 		}
 		ctx.SendChain(message.ImageBytes(pic))
 	})
@@ -620,6 +655,67 @@ func init() {
 		}
 		ctx.SendChain(message.ImageBytes(data))
 	})
+
+	engine.OnRegex(`(取消)?订阅每日随机一卡`,zero.UserOrGrpAdmin,getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		lock.Lock()
+		defer lock.Unlock()
+		gid := ctx.Event.GroupID
+		if gid == 0 {
+			gid = -ctx.Event.UserID
+		}
+		en := ctx.State["regex_matched"].([]string)[1]
+		// 获取用户状态
+		status := database.getStatus(gid)
+		if status{
+			if en == "取消" {
+				err := database.delStatus(gid)
+				if err != nil {
+					ctx.SendChain(message.Text("取消订阅失败~\n", serviceErr, err))
+					return
+				}
+				ctx.SendChain(message.Text("已取消订阅~"))
+				return
+			}
+			ctx.SendChain(message.Text("订阅成功~以后每天12点将会自动分享一张卡片~"))
+			return
+		}
+		if en == "取消" {
+			ctx.SendChain(message.Text("[ygocdb]尚未订阅过该服务,无需取消"))
+			return
+		}
+		err := database.addStatus(gid)
+		if err != nil {
+			ctx.SendChain(message.Text("订阅失败~\n", serviceErr, err))
+			return
+		}
+		ctx.SendChain(message.Text("订阅成功~以后每天12点将会自动分享一张卡片~"))
+	})
+	engine.OnFullMatch("分享卡片", getDB, checkUpdate).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		infos, err := database.findAll()
+		if err != nil {
+			logrus.Warningf("%s %s", serviceErr, err.Error())
+			return
+		}
+		if len(infos) == 0 {
+			return
+		}
+		for _, info := range infos {
+			data := drawCard()
+			pic, err := drawimage(data)
+			if err != nil {
+				logrus.Errorf("%s 发送给群(%d)图片失败。%s", serviceErr, info.GID, err.Error())
+				continue
+			}
+			if info.GID < 0 {
+				ctx.SendPrivateMessage(-info.GID, message.Text("今日分享卡片:\n(取消指令:取消订阅每日随机一卡)"))
+				ctx.SendPrivateMessage(-info.GID, message.ImageBytes(pic))
+			} else if info.GID > 0 {
+				ctx.SendGroupMessage(info.GID, message.Text("今日分享卡片:\n(取消指令:取消订阅每日随机一卡)"))
+				ctx.SendGroupMessage(info.GID, message.ImageBytes(pic))
+			}
+			time.Sleep(1 * time.Second)
+		}
+	})
 }
 
 func cardtext(list searchResult, cardid int) string {
@@ -712,6 +808,35 @@ func drawCard(index ...int) cardInfo {
 		data = drawCard(i)
 	}
 	return data
+}
+
+
+// getStatus 获取状态
+func (cdb *ygoDB)getStatus(gid int64) bool{
+	cdb.Lock()
+	defer cdb.Unlock()
+	return cdb.db.CanFind("subscribe", "WHERE GID = ?", gid)
+}
+
+// delStatus 删除状态
+func (cdb *ygoDB)delStatus(gid int64) error{
+	cdb.Lock()
+	defer cdb.Unlock()
+	return cdb.db.Del("subscribe", "WHERE GID = ?", gid)
+}
+
+// addStatus 添加状态
+func (cdb *ygoDB)addStatus(gid int64) error{
+	cdb.Lock()
+	defer cdb.Unlock()
+	return cdb.db.Insert("subscribe", &subscribe{GID: gid})
+}
+
+// findAll 查询所有库信息
+func (sdb *ygoDB) findAll() (dbInfos []*subscribe, err error) {
+	sdb.Lock()
+	defer sdb.Unlock()
+	return sql.FindAll[subscribe](&sdb.db, "subscribe", "")
 }
 
 // 绘制图片
