@@ -8,8 +8,13 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"strings"
+	"runtime"
+	"math/rand"
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/console" // 更改控制台属性
+
+	"github.com/FloatTech/ZeroBot-Plugin/kanban" // 打印 banner
 
 	// 打印 banner
 
@@ -81,7 +86,8 @@ import (
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
 
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/aireply" // 人工智能回复
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/_personal/aireply" // 人工智能回复
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/aichat" // AI聊天
 
 	/*/                                                                  //
 	//                                                                  //
@@ -198,6 +204,8 @@ import (
 	//                          vvvvvvvvvvvvvv                          //
 	//                               vvvv                               //
 
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/aichat" // AI聊天
+
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/curse" // 骂人
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
@@ -221,6 +229,11 @@ import (
 	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/driver"
+	"github.com/wdvxdr1123/ZeroBot/message"
+
+	// webctrl "github.com/FloatTech/zbputils/control/web"
+
+	"github.com/FloatTech/ZeroBot-Plugin/kanban/banner"
 	// webctrl "github.com/FloatTech/zbputils/control/web"
 	// -----------------------以上为内置依赖，勿动------------------------ //
 )
@@ -333,22 +346,19 @@ func init() {
 }
 
 func main() {
-	/*
-		if !strings.Contains(runtime.Version(), "go1.2") { // go1.20之前版本需要全局 seed，其他插件无需再 seed
-			rand.Seed(time.Now().UnixNano()) //nolint: staticcheck
-		}
-		// 帮助
-		zero.OnFullMatchGroup([]string{"help", "/help", ".help", "。help", "#help", "帮助", "菜单"}, zero.OnlyToMe).SetBlock(true).
-			Handle(func(ctx *zero.Ctx) {
-				ctx.SendChain(message.Text(banner.Banner,
-					"\n————————————\n基础指令:\n",
-					"- 查看zbp公告\n- /服务列表\n- /用法[插件名称]\n- /启用[插件名称]\n- /禁用[插件名称]\n- /反馈[内容]",
-				))
-			})
-		zero.OnFullMatch("查看zbp公告", zero.OnlyToMe, zero.AdminPermission).SetBlock(true).
-			Handle(func(ctx *zero.Ctx) {
-				ctx.SendChain(message.Text(strings.ReplaceAll(kanban.Kanban(), "\t", "")))
-			})
-	*/
+	//*
+	if !strings.Contains(runtime.Version(), "go1.2") { // go1.20之前版本需要全局 seed，其他插件无需再 seed
+		rand.Seed(time.Now().UnixNano()) //nolint: staticcheck
+	}
+	// 帮助
+	zero.OnFullMatchGroup([]string{"help", "/help", ".help", "菜单"}, zero.OnlyToMe).SetBlock(true).
+		Handle(func(ctx *zero.Ctx) {
+			ctx.SendChain(message.Text(banner.Banner, "\n管理发送\"/服务列表\"查看 bot 功能\n发送\"/用法name\"查看功能用法"))
+		})
+	zero.OnFullMatch("查看zbp公告", zero.OnlyToMe, zero.AdminPermission).SetBlock(true).
+		Handle(func(ctx *zero.Ctx) {
+			ctx.SendChain(message.Text(strings.ReplaceAll(kanban.Kanban(), "\t", "")))
+		})
+	//*/
 	zero.RunAndBlock(&config.Z, process.GlobalInitMutex.Unlock)
 }
