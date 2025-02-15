@@ -31,6 +31,9 @@ schema = 3
   [mod."github.com/FloatTech/zbputils"]
     version = "v1.7.2-0.20250214131804-02e9f18c43df"
     hash = "sha256-pNLSoTbL8XxRgr8OsHE53QDYfUCaTtudySFxzAaEdVA="
+  [mod."github.com/PuerkitoBio/goquery"]
+    version = "v1.5.1"
+    hash = "sha256-GqxIdhuN1L3enT8pNlWm+rmkdN5uMfF8TfpxhAHhEDQ="
   [mod."github.com/RomiChan/syncx"]
     version = "v0.0.0-20240418144900-b7402ffdebc7"
     hash = "sha256-L1j1vgiwqXpF9pjMoRRlrQUHzoULisw/01plaEAwxs4="
@@ -190,15 +193,9 @@ schema = 3
   [mod."github.com/remyoudompheng/bigfft"]
     version = "v0.0.0-20230129092748-24d4a6f8daec"
     hash = "sha256-vYmpyCE37eBYP/navhaLV4oX4/nu0Z/StAocLIFqrmM="
-<<<<<<< HEAD
-  [mod."github.com/rogpeppe/go-internal"]
-    version = "v1.12.0"
-    hash = "sha256-qvDNCe3l84/LgrA8X4O15e1FeDcazyX91m9LmXGXX6M="
   [mod."github.com/sergi/go-diff"]
     version = "v1.3.1"
     hash = "sha256-XLA/BLIPuUU76yikXqIeRSXr7T7A3Uz6I27+mDxGj7w="
-=======
->>>>>>> upstream/master
   [mod."github.com/shirou/gopsutil/v3"]
     version = "v3.24.5"
     hash = "sha256-tc+t1u7gf5A+Bd956dYeM8pGbxs9ezQHqKAKfLQLpuQ="
