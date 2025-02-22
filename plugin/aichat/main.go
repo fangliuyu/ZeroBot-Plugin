@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/fumiama/deepinfra"
+	"github.com/fumiama/deepinfra/model"
 	"github.com/sirupsen/logrus"
 
 	zero "github.com/wdvxdr1123/ZeroBot"
@@ -32,22 +33,26 @@ var (
 			"- 设置AI聊天温度80\n" +
 			"- 设置AI聊天密钥xxx\n" +
 			"- 设置AI聊天模型名xxx\n" +
+			"- 重置AI聊天系统提示词\n" +
 			"- 设置AI聊天系统提示词xxx\n" +
-			"- 设置AI聊天分隔符</think>(留空则清除)",
+			"- 设置AI聊天分隔符</think>(留空则清除)\n" +
+			"- 设置AI聊天(不)响应AT",
 		PrivateDataFolder: "aichat",
 	})
 )
 
 var (
-	modelname    = "deepseek-ai/DeepSeek-R1"
-	systemprompt = "你正在QQ群与用户聊天，用户发送了消息。按自己的心情简短思考后条理清晰地回复。"
+	modelname    = model.ModelDeepDeek
+	systemprompt = chat.SystemPrompt
 	sepstr       = ""
+	noreplyat    = false
 )
 
 func init() {
 	mf := en.DataFolder() + "model.txt"
 	sf := en.DataFolder() + "system.txt"
 	pf := en.DataFolder() + "sep.txt"
+	nf := en.DataFolder() + "NoReplyAT"
 	if file.IsExist(mf) {
 		data, err := os.ReadFile(mf)
 		if err != nil {
@@ -72,9 +77,10 @@ func init() {
 			sepstr = string(data)
 		}
 	}
+	noreplyat = file.IsExist(nf)
 
 	en.OnMessage(func(ctx *zero.Ctx) bool {
-		return ctx.ExtractPlainText() != ""
+		return ctx.ExtractPlainText() != "" && (!noreplyat || (noreplyat && !ctx.Event.IsToMe))
 	}).SetBlock(false).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
 		if gid == 0 {
@@ -89,6 +95,9 @@ func init() {
 		rate &= 0xff
 		if !ctx.Event.IsToMe && rand.Intn(100) >= int(rate) {
 			return
+		}
+		if ctx.Event.IsToMe {
+			ctx.Block()
 		}
 		key := ""
 		err := c.GetExtra(&key)
@@ -114,14 +123,18 @@ func init() {
 		if temp > 100 {
 			temp = 100
 		}
-		data, err := y.Request(chat.Ask(ctx, float32(temp)/100, modelname, systemprompt, sepstr))
+
+		data, err := y.Request(chat.Ask(model.NewOpenAI(
+			modelname, sepstr,
+			float32(temp)/100, 0.9, 4096,
+		), gid, systemprompt))
 		if err != nil {
 			logrus.Warnln("[niniqun] post err:", err)
 			return
 		}
 		txt := strings.Trim(data, "\n 　")
 		if len(txt) > 0 {
-			chat.Reply(ctx, txt)
+			chat.Reply(gid, txt)
 			nick := zero.BotConfig.NickName[rand.Intn(len(zero.BotConfig.NickName))]
 			txt = strings.ReplaceAll(txt, "{name}", ctx.CardOrNickName(ctx.Event.UserID))
 			txt = strings.ReplaceAll(txt, "{me}", nick)
@@ -254,6 +267,11 @@ func init() {
 		}
 		ctx.SendChain(message.Text("成功"))
 	})
+	en.OnFullMatch("重置AI聊天系统提示词", zero.OnlyPrivate, zero.SuperUserPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		systemprompt = chat.SystemPrompt
+		_ = os.Remove(sf)
+		ctx.SendChain(message.Text("成功"))
+	})
 	en.OnPrefix("设置AI聊天分隔符", zero.OnlyPrivate, zero.SuperUserPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		args := strings.TrimSpace(ctx.State["args"].(string))
 		if args == "" {
@@ -269,5 +287,27 @@ func init() {
 			return
 		}
 		ctx.SendChain(message.Text("设置成功"))
+	})
+	en.OnRegex("^设置AI聊天(不)?响应AT$", zero.OnlyPrivate, zero.SuperUserPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+		args := ctx.State["regex_matched"].([]string)
+		isno := args[1] == "不"
+		if isno {
+			f, err := os.Create(nf)
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			defer f.Close()
+			_, err = f.WriteString("PLACEHOLDER")
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			noreplyat = true
+		} else {
+			_ = os.Remove(nf)
+			noreplyat = false
+		}
+		ctx.SendChain(message.Text("成功"))
 	})
 }

@@ -630,12 +630,12 @@ func (sql *fishdb) refreshStroeInfo() (ok bool, err error) {
 			Duration: time.Now().Unix(),
 			Name:     "初始木竿",
 			Type:     "pole",
-			Price:    priceList["木竿"]+priceList["木竿"] * discountList["木竿"]/100,
-			Other: 	  "30/0/0/0",
+			Price:    priceList["木竿"] + priceList["木竿"]*discountList["木竿"]/100,
+			Other:    "30/0/0/0",
 		}
 		_ = sql.db.Find("store", &thingInfo, "WHERE Name = '初始木竿'")
-		thingInfo.Number ++
-		if thingInfo.Number > 5{
+		thingInfo.Number++
+		if thingInfo.Number > 5 {
 			thingInfo.Number = 1
 		}
 		_ = sql.db.Insert("store", &thingInfo)
