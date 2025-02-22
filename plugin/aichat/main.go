@@ -18,19 +18,24 @@ import (
 	"github.com/FloatTech/floatbox/file"
 	"github.com/FloatTech/floatbox/process"
 	ctrl "github.com/FloatTech/zbpctrl"
+	"github.com/FloatTech/zbputils/chat"
 	"github.com/FloatTech/zbputils/control"
 )
 
 var (
 	api *deepinfra.API
 	en  = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
-		DisableOnDefault:  false,
-		Extra:             control.ExtraFromString("aichat"),
-		Brief:             "OpenAI聊天",
-		Help:              "- 设置AI聊天触发概率10\n- 设置AI聊天温度80\n- 设置AI聊天密钥xxx\n- 设置AI聊天模型名xxx\n- 设置AI聊天系统提示词xxx\n- 设置AI聊天分隔符</think>",
+		DisableOnDefault: false,
+		Extra:            control.ExtraFromString("aichat"),
+		Brief:            "OpenAI聊天",
+		Help: "- 设置AI聊天触发概率10\n" +
+			"- 设置AI聊天温度80\n" +
+			"- 设置AI聊天密钥xxx\n" +
+			"- 设置AI聊天模型名xxx\n" +
+			"- 设置AI聊天系统提示词xxx\n" +
+			"- 设置AI聊天分隔符</think>(留空则清除)",
 		PrivateDataFolder: "aichat",
 	})
-	lst = newlist()
 )
 
 var (
@@ -69,11 +74,8 @@ func init() {
 	}
 
 	en.OnMessage(func(ctx *zero.Ctx) bool {
-		txt := ctx.ExtractPlainText()
-		ctx.State["aichat_txt"] = txt
-		return txt != ""
+		return ctx.ExtractPlainText() != ""
 	}).SetBlock(false).Handle(func(ctx *zero.Ctx) {
-		lst.add(ctx.Event.GroupID, ctx.State["aichat_txt"].(string))
 		gid := ctx.Event.GroupID
 		if gid == 0 {
 			gid = -ctx.Event.UserID
@@ -107,19 +109,19 @@ func init() {
 			y = api
 		}
 		if temp <= 0 {
-			temp = 80 // default setting
+			temp = 70 // default setting
 		}
 		if temp > 100 {
 			temp = 100
 		}
-		data, err := y.Request(lst.body(modelname, systemprompt, float32(temp)/100, gid))
+		data, err := y.Request(chat.Ask(ctx, float32(temp)/100, modelname, systemprompt, sepstr))
 		if err != nil {
 			logrus.Warnln("[niniqun] post err:", err)
 			return
 		}
 		txt := strings.Trim(data, "\n 　")
 		if len(txt) > 0 {
-			lst.add(ctx.Event.GroupID, txt)
+			chat.Reply(ctx, txt)
 			nick := zero.BotConfig.NickName[rand.Intn(len(zero.BotConfig.NickName))]
 			txt = strings.ReplaceAll(txt, "{name}", ctx.CardOrNickName(ctx.Event.UserID))
 			txt = strings.ReplaceAll(txt, "{me}", nick)
@@ -255,7 +257,9 @@ func init() {
 	en.OnPrefix("设置AI聊天分隔符", zero.OnlyPrivate, zero.SuperUserPermission).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		args := strings.TrimSpace(ctx.State["args"].(string))
 		if args == "" {
-			ctx.SendChain(message.Text("ERROR: empty args"))
+			sepstr = ""
+			_ = os.Remove(pf)
+			ctx.SendChain(message.Text("清除成功"))
 			return
 		}
 		sepstr = args
@@ -264,6 +268,6 @@ func init() {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return
 		}
-		ctx.SendChain(message.Text("成功"))
+		ctx.SendChain(message.Text("设置成功"))
 	})
 }
