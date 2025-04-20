@@ -171,7 +171,7 @@ func getMovieList(mode string) (movieList []movieInfo, err error) {
 			return
 		}
 		if mode != "今日电影" {
-			movieList[i].ComingTitle = movieInfo.MovieInfo.ComingTitle
+			movieInfo.MovieInfo.ComingTitle = movieList[i].ComingTitle
 		}
 		movieList[i] = movieInfo.MovieInfo
 	}
