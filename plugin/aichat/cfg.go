@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	cfg = newconfig()
+	cfg = config{}
 )
 
 type config struct {

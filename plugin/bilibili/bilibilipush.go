@@ -16,6 +16,7 @@ import (
 	"github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/img/text"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
@@ -182,11 +183,11 @@ func init() {
 	en.OnRegex(`拉取[B|b]站推送$`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		err := sendDynamic(ctx)
 		if err != nil {
-			ctx.SendPrivateMessage(ctx.Event.UserID, message.Text("Error: bilibilipush,", err))
+			logrus.Warningln("[bilibilipush]Error: ", err)
 		}
 		err = sendLive(ctx)
 		if err != nil {
-			ctx.SendPrivateMessage(ctx.Event.UserID, message.Text("Error: bilibilipush,", err))
+			logrus.Warningln("[bilibilipush]Error: ", err)
 		}
 	})
 }

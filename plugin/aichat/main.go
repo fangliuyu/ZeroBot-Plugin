@@ -109,7 +109,7 @@ func init() {
 		case 1:
 			mod = model.NewOLLaMA(
 				cfg.ModelName, cfg.Separator,
-				float32(temp)/100, topp, maxn,
+				float32(temp)/100, topp, maxn, false, // Think is false by default
 			)
 		case 2:
 			mod = model.NewGenAI(
