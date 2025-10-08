@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	errHadGuessed      = errors.New("had guessed")
 	errLengthNotEnough = errors.New("length not enough")
 	errUnknownWord     = errors.New("unknown word")
 	errTimesRunOut     = errors.New("times run out")
@@ -59,17 +60,17 @@ type dictionary map[int]struct {
 
 var words = make(dictionary)
 
-func init() {
-	en := control.AutoRegister(&ctrl.Options[*zero.Ctx]{
-		DisableOnDefault: false,
-		Brief:            "猜单词",
-		Help: "- 个人猜单词\n" +
-			"- 团队猜单词\n" +
-			"- 团队六阶猜单词\n" +
-			"- 团队七阶猜单词",
-		PublicDataFolder: "Wordle",
-	}).ApplySingle(ctxext.NewGroupSingle("已经有正在进行的游戏..."))
+var en = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
+	DisableOnDefault: false,
+	Brief:            "猜单词",
+	Help: "- 个人猜单词\n" +
+		"- 团队猜单词\n" +
+		"- 团队六阶猜单词\n" +
+		"- 团队七阶猜单词",
+	PublicDataFolder: "Wordle",
+}).ApplySingle(ctxext.NewGroupSingle("已经有正在进行的游戏..."))
 
+func init() {
 	en.OnRegex(`^(个人|团队)(五阶|六阶|七阶)?猜单词$`, zero.OnlyGroup, fcext.DoOnceOnSuccess(
 		func(ctx *zero.Ctx) bool {
 			var errcnt uint32
@@ -187,6 +188,12 @@ func init() {
 								message.Text("单词长度错误"),
 							),
 						)
+					case err == errHadGuessed:
+						ctx.Send(
+							message.ReplyWithMessage(c.Event.MessageID,
+								message.Text("该单词已经猜过了"),
+							),
+						)
 					case err == errUnknownWord:
 						ctx.Send(
 							message.ReplyWithMessage(c.Event.MessageID,
@@ -217,6 +224,12 @@ func newWordleGame(target string) func(string) (bool, []byte, error) {
 				if len(s) != len(target) {
 					err = errLengthNotEnough
 					return
+				}
+				for _, v := range record {
+					if s == v {
+						err = errHadGuessed
+						return
+					}
 				}
 				i := sort.SearchStrings(words[class].dict, s)
 				if i >= len(words[class].dict) || words[class].dict[i] != s {

@@ -193,8 +193,10 @@ func init() {
 	en.OnPrefixGroup([]string{`查看钱包余额`, `查看我的钱包`}).SetBlock(true).Limit(ctxext.LimitByGroup).
 		Handle(func(ctx *zero.Ctx) {
 			param := ctx.State["args"].(string)
+			var txt string = "你"
 			var uidStr string
 			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
+				txt = "ta"
 				uidStr = ctx.Event.Message[1].Data["qq"]
 			} else if param == "" {
 				uidStr = strconv.FormatInt(ctx.Event.UserID, 10)
@@ -205,7 +207,7 @@ func init() {
 				return
 			}
 			money := wallet.GetWalletOf(uidInt)
-			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("QQ号：", uidStr, "，的钱包有", money, wallet.GetWalletName()))
+			ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text(txt, "的钱包有", money, wallet.GetWalletName()))
 		})
 
 	en.OnPrefix(`钱包转账`, zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByGroup).

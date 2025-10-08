@@ -49,8 +49,10 @@ func init() {
 				ctx.SendChain(cloud163(ctx.State["regex_matched"].([]string)[2]))
 			case "qq":
 				ctx.SendChain(qqmusic(ctx.State["regex_matched"].([]string)[2]))
-			default: // 默认聚合点歌
+			case "聚合":
 				ctx.SendChain(longzhu(ctx.State["regex_matched"].([]string)[2]))
+			default:
+				ctx.SendChain(qqmusic(ctx.State["regex_matched"].([]string)[2]))
 			}
 		})
 }
