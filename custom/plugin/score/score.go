@@ -60,6 +60,8 @@ type userdata struct {
 	Picname    string // `签到图片`
 }
 
+const cost = 20 // 获取签到背景所需点数
+
 var (
 	levelrank = [...]string{
 		"新手",  // 0-4
@@ -257,12 +259,12 @@ func init() {
 	})
 	engine.OnKeywordGroup([]string{"签到背景", "打卡背景", "签到图片", "打卡图片"}).Limit(ctxext.LimitByGroup).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
-			uid := ctx.Event.UserID
-			score := wallet.GetWalletOf(uid)
-			if score < 100 {
-				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你的", wallet.GetWalletName(), "不足100,无法获取签到背景。"))
+			score := wallet.GetWalletOf(ctx.Event.UserID)
+			if score < cost {
+				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你的", wallet.GetWalletName(), "不足", cost, ",无法获取签到背景。"))
 				return
 			}
+			uid := ctx.Event.UserID
 			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
 				uid, _ = strconv.ParseInt(ctx.Event.Message[1].Data["qq"], 10, 64)
 			}
@@ -278,13 +280,15 @@ func init() {
 				ctx.SendChain(message.Text("[ERROR]", err))
 				return
 			}
-			if msgID := ctx.SendChain(message.ImageBytes(pic)); msgID.ID() != 0 {
-				err := wallet.InsertWalletOf(uid, -100)
+			if msgID := ctx.SendChain(message.ImageBytes(pic)).ID(); msgID != 0 {
+				err := wallet.InsertWalletOf(ctx.Event.UserID, -cost)
 				if err != nil {
 					ctx.SendChain(message.Text("[ERROR]:", err))
 					return
 				}
-				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("已扣除100", wallet.GetWalletName()))
+				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("已扣除", cost, wallet.GetWalletName()))
+			} else {
+				_ = ctx.SetMessageEmojiLike(ctx.Event.MessageID, 5)
 			}
 		})
 	engine.OnRegex(`^\/修改(\s*(\[CQ:at,qq=)?(\d+).*)?信息\s*(.*)`, zero.AdminPermission, getdb).SetBlock(true).Handle(func(ctx *zero.Ctx) {

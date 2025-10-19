@@ -103,7 +103,7 @@ func init() {
 		temperature := stor.temp()
 		topp, maxn := cfg.mparams()
 
-		if !stor.noagent() && cfg.AgentAPI != "" && cfg.AgentModelName != "" {
+		if stor.noagent() && cfg.AgentAPI != "" && cfg.AgentModelName != "" {
 			x := deepinfra.NewAPI(cfg.AgentAPI, string(cfg.AgentKey))
 			mod, err := cfg.Type.protocol(cfg.AgentModelName, temperature, topp, maxn)
 			if err != nil {
@@ -182,7 +182,7 @@ func init() {
 				logrus.Infoln("[aichat] 回复内容:", t)
 				recCfg := airecord.GetConfig()
 				record := ""
-				if !stor.norecord() {
+				if stor.norecord() {
 					record = ctx.GetAIRecord(recCfg.ModelID, recCfg.Customgid, t)
 				}
 				if record != "" {

@@ -627,8 +627,9 @@ func init() {
 		}
 		/***************************************************************/
 		if userInfo.Experience > 1000 {
-			stauts := "突破成功"
+			stauts := "没发生什么变化"
 			if rand.Intn(100) < 40 {
+				stauts = "突破成功"
 				userInfo.Type = "猫娘"
 				userInfo.Breed += 1
 				userInfo.Weight = 2 + rand.Float64()
@@ -640,25 +641,15 @@ func init() {
 				}
 				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "进化值圆满，顿悟成功，进化成猫娘了!\n可以发送“上传猫猫照片”修改图像了喔"))
 			} else if rand.Intn(100) < 40 {
-				if rand.Intn(100) < 40 {
-					stauts = "突破失败"
-					userInfo.Weight = rand.Float64() * userInfo.Weight
-					userInfo.Experience = rand.Intn(500)
-					userInfo.LastTime = time.Now().Unix()
-					if err = catdata.updateCatInfo(gidStr, userInfo); err != nil {
-						ctx.SendChain(message.Text("[ERROR]:", err))
-						return
-					}
-					ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "进化值过于饱满，身体承受不了爆体受伤，被压制在了原形态"))
-				} else {
-					err = catdata.catDie(gidStr, uidStr)
-					if err != nil {
-						ctx.SendChain(message.Text("[ERROR]:", err))
-						return
-					}
-					ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "进化值过于饱满，身体承受不了爆体而亡"))
+				stauts = "突破失败"
+				userInfo.Weight = rand.Float64() * userInfo.Weight
+				userInfo.Experience = rand.Intn(500)
+				userInfo.LastTime = time.Now().Unix()
+				if err = catdata.updateCatInfo(gidStr, userInfo); err != nil {
+					ctx.SendChain(message.Text("[ERROR]:", err))
 					return
 				}
+				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "进化值过于饱满，身体承受不了爆体受伤，被压制在了原形态"))
 			}
 			/***************************************************************/
 			avatarResult, err := userInfo.avatar(ctx.Event.GroupID)
