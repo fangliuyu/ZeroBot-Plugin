@@ -16,6 +16,7 @@ import (
 	"github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/img/text"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
@@ -173,7 +174,7 @@ func init() {
 		}
 		data, err := text.RenderToBase64(msg, text.FontFile, 600, 20)
 		if err != nil {
-			ctx.SendChain(message.Text("ERROR: ", err))
+			logrus.Warnln("[bilibilipush] ERROR: ", err)
 			return
 		}
 		if id := ctx.SendChain(message.Image("base64://" + binary.BytesToString(data))); id.ID() == 0 {

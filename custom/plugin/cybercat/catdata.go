@@ -208,11 +208,11 @@ func getNewCatData(gid, uid string) (cat *catInfo, err error) {
 	cat.SubTime += elapsed
 
 	// 更新心情（随时间缓慢下降）
-	moodDecay := elapsed / 3600.0 // 每小时下降1点心情
+	moodDecay := elapsed / 3600.0 // 每1hour下降1点心情
 	cat.Mood = int(math.Max(0, float64(cat.Mood)-moodDecay))
 
 	// 更新饱食度（随时间下降）
-	fullnessDecay := elapsed / 1800.0 // 每半小时下降1点饱食度
+	fullnessDecay := elapsed / 900.0 // 每15min下降1点饱食度
 	cat.Satiety = float64(cat.Satiety) - fullnessDecay
 
 	// 如果饱食度太低，心情下降更快

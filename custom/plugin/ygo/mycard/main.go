@@ -85,7 +85,7 @@ var (
 	}
 	lasttime time.Time
 	todayPic = make(map[string][]byte, 4)
-	mycard   = control.Register("ygo", "mycard", &ctrl.Options[*zero.Ctx]{
+	mycard   = control.Register("mycard", &ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "萌卡功能",
 		Help:             "- 萌卡[今日|月度]饼图\n- 萌卡[今日|月度][竞技|娱乐]饼图\n- 萌卡胜率 玩家名",

@@ -51,7 +51,7 @@ var (
 	nameList  = []string{"CN卡名", "NW卡名", "MD卡名", "简中卡名", "日文注音", "日文名", "英文名"}
 	gameRoom  sync.Map
 	gameCheck sync.Map
-	ygoguess  = control.Register("ygo", "ygoguess", &ctrl.Options[*zero.Ctx]{
+	ygoguess  = control.Register("ygoguess", &ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "游戏王猜卡游戏",
 		Help:             "- 猜卡游戏\n- 我猜xxx",
@@ -103,7 +103,7 @@ func init() {
 						message.Text("时间超时,游戏结束\n卡名是:\n", info.Name[0], "\n"),
 						message.ImageBytes(pic)))
 					if msgID == 0 {
-						ctx.SendGroupMessage(gid, message.Text("时间超时,游戏结束\n图片发送失败,可能被风控\n答案是:", info.Name[0]))
+						ctx.SendGroupMessage(gid, message.Text("时间超时,游戏结束\n图片发送失败,可能被风控\n卡名是:", info.Name[0]))
 					}
 				case sin >= 105 && sin < 106:
 					ctx.SendGroupMessage(gid, message.Text("还有15s作答时间"))
@@ -170,8 +170,8 @@ func init() {
 		gameRoom.Store(gid, gameInfo)
 		mid := ctx.SendChain(message.ImageBytes(gameInfo.Pic))
 		if mid.ID() != 0 {
-			_ = wallet.InsertWalletOf(gameInfo.UID, -1)
-			ctx.SendChain(message.Text("(第", elapsed, "题)请回答该图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏\n猜卡失败或取消会扣除5", wallet.GetWalletName()))
+			// _ = wallet.InsertWalletOf(gameInfo.UID, -1)
+			ctx.SendChain(message.Text("(第", elapsed, "题)请回答该图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏\n每次提示扣1;\n猜卡失败或取消会扣除5", wallet.GetWalletName()))
 		}
 	})
 
@@ -210,14 +210,14 @@ func init() {
 			picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
 			pic, err := os.ReadFile(picPath)
 			if err != nil {
-				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来.\n答案是:", gameInfo.Name[0], "\n[ERROR]", err))
+				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来.\n卡名是:", gameInfo.Name[0], "\n[ERROR]", err))
 				return
 			}
 			msgID := ctx.Send(message.ReplyWithMessage(mid,
 				message.Text("次数到了,很遗憾没能猜出来\n卡名是:\n", gameInfo.Name[0], "\n"),
 				message.ImageBytes(pic)))
 			if msgID.ID() == 0 {
-				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来\n图片发送失败,可能被风控\n答案是:", gameInfo.Name[0]))
+				ctx.SendChain(message.Text("次数到了,很遗憾没能猜出来\n图片发送失败,可能被风控\n卡名是:", gameInfo.Name[0]))
 			}
 			return
 		}
@@ -227,6 +227,13 @@ func init() {
 			gameRoom.Store(gid, gameInfo)
 			return
 		}
+		txt := ""
+		if diff == 100 {
+			err := wallet.InsertWalletOf(ctx.Event.UserID, 5)
+			if err == nil {
+				txt = "\n满分回答,奖励5" + wallet.GetWalletName()
+			}
+		}
 		defer gameRoom.Delete(gid)
 		anserName := gameInfo.Name[0]
 		if index != 0 {
@@ -235,14 +242,14 @@ func init() {
 		picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
 		pic, err := os.ReadFile(picPath)
 		if err != nil {
-			ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)\n答案是:", anserName, "\n[ERROR]", err))
+			ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)", txt, "\n卡名是:", anserName, "\n[ERROR]", err))
 			return
 		}
 		msgID := ctx.Send(message.ReplyWithMessage(mid,
-			message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)\n卡名是:\n", anserName, "\n"),
+			message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)", txt, "\n卡名是:\n", anserName, "\n"),
 			message.ImageBytes(pic)))
 		if msgID.ID() == 0 {
-			ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)\n图片发送失败,可能被风控\n答案是:", anserName))
+			ctx.SendChain(message.Text("太棒了,你猜对了!\n(答案完整度:", diff, "%)", txt, "\n图片发送失败,可能被风控\n卡名是:", anserName))
 		}
 	})
 	ygoguess.OnFullMatch("提示", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
@@ -260,6 +267,7 @@ func init() {
 		ctx.Send(message.ReplyWithMessage(msgID, message.Text(gameInfo.Info[gameInfo.TickCount])))
 		gameInfo.TickCount++
 		gameRoom.Store(gid, gameInfo)
+		_ = wallet.InsertWalletOf(ctx.Event.UserID, -1)
 	})
 	ygoguess.OnFullMatch("取消", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
@@ -308,7 +316,6 @@ func randPicture(picFile, cardType string) ([]byte, error) {
 	}
 	dst = imgfactory.Size(dst.Image(), 256*5, 256*5)
 	id := rand.Intn(len(types))
-	println("\n*********猜卡ID:", id, " *********\n")
 	dstfunc := types[id]
 	picbytes, err := dstfunc(dst)
 	return picbytes, err

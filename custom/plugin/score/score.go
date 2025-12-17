@@ -152,40 +152,56 @@ func init() {
 		score := wallet.GetWalletOf(uid)
 		// 判断是否已经签到过了
 		if time.Now().Format("2006/01/02") == lasttime.Format("2006/01/02") {
-			if userinfo.Picname == "" {
-				picFile, err := initPic(0)
-				if err != nil {
-					ctx.SendChain(message.Text("[ERROR]:", err))
-					return
-				}
-				if picFile != "" {
-					userinfo.Picname = picFile
-					if err := scoredata.setData(userinfo); err != nil {
-						ctx.SendChain(message.Text("[ERROR]:签到记录失败。", err))
-						return
-					}
-				}
-			} else if file.IsNotExist(userinfo.Picname) {
-				picFile, err := randFile(cachePath, 0)
-				if err != nil {
-					ctx.SendChain(message.Text("[ERROR]:", err))
-					return
-				}
-				if picFile != "" {
-					userinfo.Picname = picFile
-					if err := scoredata.setData(userinfo); err != nil {
-						ctx.SendChain(message.Text("[ERROR]:签到记录失败。", err))
-						return
-					}
-				}
+			// if userinfo.Picname == "" {
+			// 	picFile, err := initPic(0)
+			// 	if err != nil {
+			// 		ctx.SendChain(message.Text("[ERROR]:", err))
+			// 		return
+			// 	}
+			// 	if picFile != "" {
+			// 		userinfo.Picname = picFile
+			// 		if err := scoredata.setData(userinfo); err != nil {
+			// 			ctx.SendChain(message.Text("[ERROR]:签到记录失败。", err))
+			// 			return
+			// 		}
+			// 	}
+			// } else if file.IsNotExist(userinfo.Picname) {
+			// 	picFile, err := randFile(cachePath, 0)
+			// 	if err != nil {
+			// 		ctx.SendChain(message.Text("[ERROR]:", err))
+			// 		return
+			// 	}
+			// 	if picFile != "" {
+			// 		userinfo.Picname = picFile
+			// 		if err := scoredata.setData(userinfo); err != nil {
+			// 			ctx.SendChain(message.Text("[ERROR]:签到记录失败。", err))
+			// 			return
+			// 		}
+			// 	}
+			// }
+			// data, err := drawImage(&userinfo, score, 0)
+			// if err != nil {
+			// 	ctx.SendChain(message.Text("[ERROR]:", err))
+			// 	return
+			// }
+			// ctx.SendChain(message.Text("今天已经签到过了"))
+			// ctx.SendChain(message.ImageBytes(data))
+			rankIndex, level, nextLevelScore := getLevel(userinfo.Level)
+			nowLevel := rankIndex*5 + level
+			rank := levelrank[rankIndex]
+			_, picName := filepath.Split(userinfo.Picname)
+			picName, _, ok := strings.Cut(picName, "_")
+			text := ""
+			if ok {
+				text = "\n签到背景PID:" + picName
 			}
-			data, err := drawImage(&userinfo, score, 0)
-			if err != nil {
-				ctx.SendChain(message.Text("[ERROR]:", err))
-				return
-			}
-			ctx.SendChain(message.Text("今天已经签到过了"))
-			ctx.SendChain(message.ImageBytes(data))
+			ctx.SendChain(message.Text("今天已经签到过了,已连签: ", userinfo.Continuous, "天",
+				"\n阶级: ", rank,
+				"\n等级: ", nowLevel, "(", userinfo.Level, "/", nextLevelScore, ")",
+				"\n当前总", wallet.GetWalletName(), ": ", score,
+				text,
+				"\n\n花费20", wallet.GetWalletName(), "发送“获取签到背景”查看高清签到背景",
+			))
 			return
 		}
 		go func() {
@@ -195,13 +211,11 @@ func init() {
 				return
 			}
 		}()
-		// sudu := rand.Intn(100)
 		var wg sync.WaitGroup
 		var syncerr error = nil
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// ctx.SendChain(message.Text("「debug」正在以龟速(", sudu, "kb/s)获取签到背景..."))
 			picFile, err := randFile(cachePath, 0)
 			if err != nil {
 				syncerr = err
@@ -257,21 +271,31 @@ func init() {
 		}
 		ctx.SendChain(message.ImageBytes(data))
 	})
-	engine.OnKeywordGroup([]string{"签到背景", "打卡背景", "签到图片", "打卡图片"}).Limit(ctxext.LimitByGroup).SetBlock(true).
+	engine.OnPrefixGroup([]string{"获取签到背景", "获得签到背景", "获取签到图片", "获得签到图片", "获取打卡背景", "获得打卡背景", "获取打卡图片", "获得打卡图片"}).Limit(ctxext.LimitByGroup).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			score := wallet.GetWalletOf(ctx.Event.UserID)
 			if score < cost {
 				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("你的", wallet.GetWalletName(), "不足", cost, ",无法获取签到背景。"))
 				return
 			}
-			uid := ctx.Event.UserID
+			param := strings.TrimSpace(ctx.State["args"].(string))
+			var uid int64
 			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
 				uid, _ = strconv.ParseInt(ctx.Event.Message[1].Data["qq"], 10, 64)
+			} else if param == "" {
+				uid = ctx.Event.UserID
+			} else {
+				paramUID, err := strconv.ParseInt(param, 10, 64)
+				if err != nil {
+					ctx.SendChain(message.Text("请输入正确的QQ号,", err))
+					return
+				}
+				uid = paramUID
 			}
 			userinfo := scoredata.getData(uid)
 			picFile := userinfo.Picname
 			if picFile == "" || file.IsNotExist(picFile) {
-				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("请先签到！"))
+				ctx.SendChain(message.Reply(ctx.Event.MessageID), message.At(uid), message.Text("请先签到！"))
 				return
 			}
 			// ctx.SendChain(message.Image("file:///" + file.BOTPATH + "/" + picFile))
@@ -615,7 +639,7 @@ func drawImage(userinfo *userdata, score, add int) (data []byte, err error) {
 	imgDH := int(float64(imgDY) * scale)
 	back = imgfactory.Size(back, imgDW, imgDH).Image()
 
-	backDY := imgDH + 500
+	backDY := imgDH + 500 + 10 + 50 + 10
 	canvas := gg.NewContext(backDX, backDY)
 	// 放置毛玻璃背景
 	backBlurW := float64(imgDW) * (float64(backDY) / float64(imgDH))
@@ -761,8 +785,9 @@ func drawImage(userinfo *userdata, score, add int) (data []byte, err error) {
 	// 放置图片
 	canvas.DrawImageAnchored(back, backDX/2, imgDH/2+475, 0.5, 0.5)
 	if ok {
-		canvas.DrawStringAnchored("PID:"+picName, float64(backDX)/2, float64(backDY)-10-textH, 0.5, 0.5)
+		canvas.DrawStringAnchored("PID:"+picName, 200, float64(backDY)-10-textH, 0.5, 0.5)
 	}
+	canvas.DrawStringAnchored("花费20"+wallet.GetWalletName()+"发送“获取签到背景”获取高清图片", float64(backDX)/2-340, float64(backDY)-10-textH, 0, 0.5)
 	// 生成图片
 	return imgfactory.ToBytes(canvas.Image())
 }

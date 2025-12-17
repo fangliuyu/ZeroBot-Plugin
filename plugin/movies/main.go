@@ -20,6 +20,7 @@ import (
 	ctrl "github.com/FloatTech/zbpctrl"
 	"github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/img/text"
+	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
@@ -192,13 +193,22 @@ func drawOnListPic(lits []movieInfo) (data []byte, err error) {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(lits))
-	for i := 0; i < len(lits); i++ {
+	for i := range lits {
 		go func(i int) {
 			info := lits[i]
 			defer wg.Done()
 			img, err := avatar(&info)
 			if err != nil {
-				return
+				logrus.Errorln(info.Nm, " (", info.Img, ")down img fail:", err)
+				f, err := os.Open(filepath.Join(en.DataFolder(), "unknown.jpg"))
+				if err != nil {
+					return
+				}
+				defer f.Close()
+				img, _, err = image.Decode(f)
+				if err != nil {
+					return
+				}
 			}
 			movieType := "2D"
 			if info.Version != "" {
@@ -246,13 +256,22 @@ func drawComListPic(lits []movieInfo) (data []byte, err error) {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(lits))
-	for i := 0; i < len(lits); i++ {
+	for i := range lits {
 		go func(i int) {
 			info := lits[i]
 			defer wg.Done()
 			img, err := avatar(&info)
 			if err != nil {
-				return
+				logrus.Errorln(info.Nm, " down img fail:", err)
+				f, err := os.Open(filepath.Join(en.DataFolder(), "unknown.jpg"))
+				if err != nil {
+					return
+				}
+				defer f.Close()
+				img, _, err = image.Decode(f)
+				if err != nil {
+					return
+				}
 			}
 			movieType := "2D"
 			if info.Version != "" {
@@ -312,9 +331,24 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 	wg := &sync.WaitGroup{}
 	wg.Add(line)
 	cardimgs := make([]image.Image, line)
-	for i := 0; i < line; i++ {
+	for idx := range rankinfo {
 		go func(i int) {
 			defer wg.Done()
+			if rankinfo[i] == nil {
+				return
+			}
+			if rankinfo[i].Avatar == nil {
+				f, err := os.Open(filepath.Join(en.DataFolder(), "unknown.jpg"))
+				if err != nil {
+					return
+				}
+				defer f.Close()
+				pic, _, err := image.Decode(f)
+				if err != nil {
+					return
+				}
+				rankinfo[i].Avatar = pic
+			}
 			card := gg.NewContext(w, cardh)
 
 			card.NewSubPath()
@@ -333,7 +367,6 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 			card.ClosePath()
 
 			card.ClipPreserve()
-
 			avatar := rankinfo[i].Avatar
 
 			PicH := cardh - 20
@@ -351,7 +384,7 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 			card.DrawRoundedRectangle(wspac+float64(cardw-8-60), (float64(cardh)-50)/2, 60, 50, 25)
 			card.Fill()
 			cardimgs[i] = card.Image()
-		}(i)
+		}(idx)
 	}
 
 	canvas.SetRGBA255(0, 0, 0, 255)
@@ -366,7 +399,10 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 		return
 	}
 	wg.Wait()
-	for i := 0; i < line; i++ {
+	for i := range cardimgs {
+		if cardimgs[i] == nil {
+			continue
+		}
 		canvas.DrawImageAnchored(cardimgs[i], w/2, int(hspac)+((cardh+cardspac)*i), 0.5, 0)
 		canvas.DrawStringAnchored(rankinfo[i].TopLeftText, wspac+10+80+10, hspac+float64((cardspac+cardh)*i+cardh*3/16), 0, 0.5)
 	}
@@ -376,7 +412,7 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 	if err != nil {
 		return
 	}
-	for i := 0; i < line; i++ {
+	for i := range rankinfo {
 		for j, text := range rankinfo[i].BottomLeftText {
 			canvas.DrawStringAnchored(text, wspac+10+80+10, hspac+float64((cardspac+cardh)*i+cardh*6/16)+float64(j*16), 0, 0.5)
 		}
@@ -386,7 +422,7 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 	if err != nil {
 		return
 	}
-	for i := 0; i < line; i++ {
+	for i := range rankinfo {
 		canvas.DrawStringAnchored(rankinfo[i].RightText, w-wspac-8-60-8, hspac+float64((cardspac+cardh)*i+cardh/2), 1, 0.5)
 	}
 
@@ -395,7 +431,7 @@ func drawRankingCard(fontdata []byte, title string, rankinfo []*cardInfo) (img i
 	if err != nil {
 		return
 	}
-	for i := 0; i < line; i++ {
+	for i := range rankinfo {
 		canvas.DrawStringAnchored(rankinfo[i].Rank, w-wspac-8-30, hspac+float64((cardspac+cardh)*i+cardh/2), 0.5, 0.5)
 	}
 

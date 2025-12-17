@@ -23,6 +23,7 @@ import (
 const (
 	gameListUrl = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"   // 获取所有游戏列表
 	gameInfoUrl = "https://store.steampowered.com/api/appdetails?appids=%+v" // 游戏详情页
+	ua          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
 )
 
 type GameList struct {
@@ -396,6 +397,7 @@ func getGameWebData(appid int) (data GameInfo, err error) {
 	apiResponse, err := web.RequestDataWithHeaders(web.NewDefaultClient(), url, "GET", func(r *http.Request) error {
 		r.Header.Add("Cookie", "steamCountry=CN;")
 		r.Header.Set("accept-language", "zh-CN,zh;q=0.9")
+		r.Header.Set("User-Agent", ua)
 		return nil
 	}, nil)
 	if err != nil {

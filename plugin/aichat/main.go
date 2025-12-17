@@ -159,7 +159,9 @@ func init() {
 			logrus.Warnln("ERROR: ", err)
 			return
 		}
-		data, err := x.Request(chat.GetChatContext(mod, gid, cfg.SystemP, bool(cfg.NoSystemP)))
+		timenow := time.Now().Format("2006-01-02 15:04:05")
+		sp := cfg.SystemP + "\n当前时间：" + timenow
+		data, err := x.Request(chat.GetChatContext(mod, gid, sp, bool(cfg.NoSystemP)))
 		if err != nil {
 			logrus.Warnln("[aichat] post err:", err)
 			return
