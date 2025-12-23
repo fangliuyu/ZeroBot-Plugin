@@ -52,8 +52,8 @@ const (
 
 var (
 	priore       = regexp.MustCompile(`^\t// -{28}(高|中|低)优先级区-{28} //$`)
-	mainpluginre = regexp.MustCompile(`^\t_ "github\.com/FloatTech/ZeroBot-Plugin/plugin/(\w+)"\s+// `)
-	custpluginre = regexp.MustCompile(`^\t_ "github\.com/FloatTech/ZeroBot-Plugin/custom/plugin/(\w+)"\s+// `)
+	mainpluginre = regexp.MustCompile(`^\t_ "github\.com/FloatTech/ZeroBot-Plugin/plugin/(.+/)?(\w+)"\s+// `)
+	custpluginre = regexp.MustCompile(`^\t_ "github\.com/FloatTech/ZeroBot-Plugin/custom/plugin/(.+/)?(\w+)"\s+// `)
 )
 
 func init() {
@@ -110,8 +110,8 @@ func init() {
 		}
 
 		// 在对应优先级区域内匹配插件
-		if matches := mainpluginre.FindStringSubmatch(line); len(matches) > 1 {
-			name := matches[1]
+		if matches := mainpluginre.FindStringSubmatch(line); len(matches) > 2 {
+			name := matches[2]
 			switch status {
 			case statushigh:
 				highprios = append(highprios, name)
@@ -131,8 +131,8 @@ func init() {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if matches := custpluginre.FindStringSubmatch(line); len(matches) > 1 {
-			custprios = append(custprios, matches[1])
+		if matches := custpluginre.FindStringSubmatch(line); len(matches) > 2 {
+			custprios = append(custprios, matches[2])
 		}
 	}
 

@@ -9,10 +9,6 @@ import (
 	"github.com/FloatTech/floatbox/web"
 )
 
-const (
-	defaultApi = "https://.../api/getrooms?"
-)
-
 type RoomsApiData struct {
 	Rooms []RoomInfo `json:"rooms"`
 }
@@ -65,9 +61,9 @@ func (room *RoomInfo) getGameMode() string {
 	case 1:
 		return "BO3"
 	case 2:
-		return "双打房"
+		return "2V2"
 	default:
-		return "未知模式"
+		return "Unkown"
 	}
 }
 
@@ -83,11 +79,9 @@ func (room *RoomInfo) getGameStatus() string {
 		switch mode {
 		case "双打房":
 			if num < 4 {
-				return "等待中(4=" + strconv.Itoa(num) + ", 别让等待变成为遗憾)"
-			}
-		case "BO3", "BO1":
-			if num < 2 {
-				return "等待中(别让等待变成为遗憾)"
+				return "等待中(4=" + strconv.Itoa(num) + ")"
+			} else {
+				return "等待中"
 			}
 		default:
 			return "等待中"

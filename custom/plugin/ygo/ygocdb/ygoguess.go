@@ -51,7 +51,7 @@ var (
 	nameList  = []string{"CN卡名", "NW卡名", "MD卡名", "简中卡名", "日文注音", "日文名", "英文名"}
 	gameRoom  sync.Map
 	gameCheck sync.Map
-	ygoguess  = control.Register("ygoguess", &ctrl.Options[*zero.Ctx]{
+	ygoguess  = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "游戏王猜卡游戏",
 		Help:             "- 猜卡游戏\n- 我猜xxx",

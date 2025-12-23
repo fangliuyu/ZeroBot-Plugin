@@ -2,12 +2,15 @@
 package ygo
 
 import (
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/FloatTech/floatbox/binary"
+	"github.com/FloatTech/floatbox/file"
 	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
@@ -15,16 +18,26 @@ import (
 
 // GameInfo 游戏信息
 type GameInfo struct {
-	RoomInfo  RoomInfo
-	StartTime time.Time
+	RoomInfo   RoomInfo
+	StartTime  time.Time
+	UpdateTime int
 }
 
 var (
-	gameGroup sync.Map
-	gameRoom  sync.Map
+	defaultApi = "https://.../api/getrooms"
+	gameGroup  sync.Map
+	gameRoom   sync.Map
 )
 
 func init() {
+	apifile := engine.DataFolder() + "defaultAPI.txt"
+	if file.IsExist(apifile) {
+		apiInfo, err := os.ReadFile(apifile)
+		if err != nil {
+			panic(err)
+		}
+		defaultApi = binary.BytesToString(apiInfo)
+	}
 	engine.OnPrefix("绑定服务器", zero.OnlyGroup, getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		server := strings.TrimSpace(ctx.State["args"].(string))
 		if server == "" {
@@ -58,7 +71,7 @@ func init() {
 			Server: server,
 		}
 		if err = database.update(serverTable, &info); err != nil {
-			ctx.SendChain(message.Text("[steam] ERROR: ", err, "\nEXP: 更新数据库失败"))
+			ctx.SendChain(message.Text("[ygorooms播报] ERROR: ", err, "\nEXP: 更新数据库失败"))
 			return
 		}
 		ctx.SendChain(message.Text("绑定成功"))
@@ -66,6 +79,20 @@ func init() {
 	engine.OnRegex(`^[a-zA-Z,0-9]+\#.*`, zero.OnlyGroup, getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		roomName := strings.TrimSpace(ctx.Event.RawMessage)
 		gid := ctx.Event.GroupID
+		// 检测是否有服务器绑定
+		infos, err := database.find(serverTable, gid)
+		if err != nil {
+			logrus.Warnln("[ygorooms播报] ERROR: ", err)
+			return
+		}
+		if infos == nil {
+			infos = serverDB{}
+		}
+		infosData := infos.(serverDB)
+		if infosData.Server == "" && (gid != 759851475 && gid != 1026352282) {
+			return
+		}
+		// 添加监听
 		value, _ := gameGroup.LoadOrStore(gid, []string{})
 		roomlist := value.([]string)
 		if slices.Contains(roomlist, roomName) {
@@ -75,6 +102,21 @@ func init() {
 		roomlist = append(roomlist, roomName)
 		gameGroup.Store(gid, roomlist)
 		ctx.SendChain(message.Text("检测到ygo房间: ", roomName, "\n开始播报房间状态"))
+
+		if infosData.Server == "" && (gid == 759851475 || gid == 1026352282) {
+			infosData.Server = defaultApi
+		}
+		rooms, err := getApiRooms(infosData.Server)
+		if err != nil {
+			ctx.SendChain(message.Text("[steam] ERROR: ", err))
+			return
+		}
+		newData := rooms.filterApiRooms(roomName)
+		newRoom := GameInfo{
+			RoomInfo:  newData,
+			StartTime: time.Now(),
+		}
+		gameRoom.Store(roomName, newRoom)
 	})
 	engine.OnFullMatch("拉取ygo房间状态", getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gameGroup.Range(func(key, value any) bool {
@@ -82,22 +124,22 @@ func init() {
 			roomlist := value.([]string)
 			infos, err := database.find(serverTable, gid)
 			if err != nil {
-				logrus.Warnln("[steam] ERROR: ", err)
-				return false
+				logrus.Warnln("[ygorooms播报] ERROR: ", err)
+				return true
 			}
 			if infos == nil {
 				infos = serverDB{}
 			}
 			infosData := infos.(serverDB)
 			if infosData.Server == "" && (gid != 759851475 && gid != 1026352282) {
-				return false
+				return true
 			} else if infosData.Server == "" && (gid == 759851475 || gid == 1026352282) {
 				infosData.Server = defaultApi
 			}
 			rooms, err := getApiRooms(infosData.Server)
 			if err != nil {
-				logrus.Warnln("[steam] ERROR: ", err)
-				return false
+				logrus.Warnln("[ygorooms播报] ERROR: ", err)
+				return true
 			}
 			delList := []string{}
 			for _, roomName := range roomlist {
@@ -113,9 +155,14 @@ func init() {
 					roomInfo := roomData.(GameInfo)
 					now := time.Now()
 					elapsed := now.Sub(time.Unix(roomInfo.StartTime.Unix(), 0)).Minutes()
+					if elapsed < 3 {
+						gameRoom.Store(roomName, roomInfo)
+						continue
+					}
+					// 房间结束，发送消息并删除监听
 					gameRoom.Delete(roomName)
 					delList = append(delList, roomName)
-					ctx.SendGroupMessage(gid, message.Text("[ygorooms播报] 房间 ", roomName, " 已结束决斗, 持续时间 ", int(elapsed), " 分钟"))
+					ctx.SendGroupMessage(gid, message.Text("[ygorooms播报]\n房间 ", roomName, " 已结束决斗\n持续时间 ", int(elapsed), " 分钟"))
 					continue
 				}
 				roomData, ok := gameRoom.Load(roomName)
@@ -123,64 +170,91 @@ func init() {
 					return true
 				}
 				data := roomData.(GameInfo)
-				msg := ""
+				var msg strings.Builder
 				olderData := data.RoomInfo
-				// if olderData.Istart == newData.Istart {
-				// 	continue
-				// }
+				if olderData.Istart == newData.Istart {
+					// 相同回合，判断更新时间
+					data.UpdateTime++
+					gameRoom.Store(roomName, data)
+					if data.UpdateTime%2 != 0 {
+						continue
+					}
+				} else {
+					data.UpdateTime = 0
+				}
 				// 状态变化，发送消息
-				msg += "[ygorooms播报] 房间 " + newData.RoomName + " :\n"
+				msg.WriteString("[ygorooms播报]\n房间: " + newData.RoomName + "\n")
 				mode := newData.getGameMode()
-				msg += "模式: " + mode + "\n"
+				msg.WriteString("模式: " + mode + "\n")
 				status := newData.getGameStatus()
-				msg += "当前状态: " + status + "\n"
-				msg += "玩家状态:\n"
+				msg.WriteString("当前状态: " + status + "\n")
+				msg.WriteString("玩家状态:\n")
 				waited := strings.Contains(status, "等待")
-				for i, userData := range newData.Users {
+				for _, userData := range newData.Users {
 					userName := userData.Name
-					msg += "[玩家" + strconv.Itoa(i+1) + "] " + userName + " :"
+					msg.WriteString("[玩家" + strconv.Itoa(userData.Pos) + "] " + userName + " :\n")
 					newmsg := ""
 					for _, user := range olderData.Users {
 						if userName == user.Name {
 							if !waited {
-								if mode == "BO3" {
-									newmsg += " 已赢小局:" + strconv.Itoa(userData.Status.Score) + " "
-								}
-								newmsg += "当前LP:" + strconv.Itoa(userData.Status.LP) + "\n"
-							} else {
-								if userData.Pos == 1 {
-									newmsg += "已准备\n"
-								} else {
-									newmsg += "未准备\n"
-								}
+								newmsg = updateMsg(mode, user, userData)
 							}
 							break
 						}
 					}
 					if newmsg == "" {
-						newmsg = " 加入房间,"
-						if userData.Pos == 1 {
-							newmsg += "已准备\n"
+						if !waited {
+							if userData.Pos < 3 {
+								if mode == "BO3" {
+									newmsg += " 已赢小局:" + strconv.Itoa(userData.Status.Score) + " "
+								}
+								newmsg += "LP:" + strconv.Itoa(userData.Status.LP) + " 场值评估:" + strconv.Itoa(userData.Status.Cards) + "\n"
+							} else {
+								newmsg += "观战中"
+							}
 						} else {
-							newmsg += "未准备\n"
+							newmsg += " 加入房间\n"
 						}
 					}
-					msg += newmsg
+					msg.WriteString(newmsg)
 				}
 				// 更新数据
 				data.RoomInfo = newData
 				gameRoom.Store(roomName, data)
-				ctx.SendGroupMessage(gid, message.Text(msg))
+				ctx.SendGroupMessage(gid, message.Text(msg.String()))
 			}
 			newRoomList := []string{}
-			for _, name := range delList {
+			for _, name := range roomlist {
 				// 从监听列表删除
-				if !slices.Contains(roomlist, name) {
-					newRoomList = append(newRoomList, name)
+				if slices.Contains(delList, name) {
+					continue
 				}
+				newRoomList = append(newRoomList, name)
 			}
 			gameGroup.Store(gid, newRoomList)
 			return true
 		})
 	})
+}
+
+func updateMsg(mode string, oldData, newData UserInfo) string {
+	newmsg := ""
+	if newData.Pos < 3 {
+		if mode == "BO3" {
+			newmsg += " 已赢小局:" + strconv.Itoa(newData.Status.Score) + " "
+		}
+		if oldData.Status.LP != newData.Status.LP {
+			newmsg += "LP:" + strconv.Itoa(oldData.Status.LP) + "->" + strconv.Itoa(newData.Status.LP)
+		} else {
+			newmsg += "LP:" + strconv.Itoa(newData.Status.LP)
+		}
+		if oldData.Status.Cards != newData.Status.Cards {
+			newmsg += " 场值评估:" + strconv.Itoa(oldData.Status.Cards) + "->" + strconv.Itoa(newData.Status.Cards) + "\n"
+		} else {
+			newmsg += " 场值评估:" + strconv.Itoa(newData.Status.Cards) + "\n"
+		}
+	} else {
+		newmsg += "观战中"
+	}
+	return newmsg
 }

@@ -334,7 +334,7 @@ func main() {
 	// 帮助
 	zero.OnFullMatchGroup([]string{"help", "/help", ".help", "菜单"}, zero.OnlyToMe).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
-			ctx.SendChain(message.Text(banner.Banner, "\n管理发送\"/服务列表\"查看 bot 功能\n发送\"/用法name\"查看功能用法"))
+			ctx.SendChain(message.Text(banner.Banner, "\nat机器人发送\"/服务列表\"查看 bot 功能\nat机器人发送\"/用法name\"查看功能用法"))
 		})
 	zero.OnFullMatch("查看zbp公告", zero.OnlyToMe, zero.AdminPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {

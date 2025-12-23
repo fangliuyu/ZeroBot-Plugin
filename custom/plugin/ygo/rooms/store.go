@@ -21,7 +21,7 @@ const (
 var (
 	database roomsDB
 
-	engine = control.Register("ygorooms", &ctrl.Options[*zero.Ctx]{
+	engine = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
 		DisableOnDefault: false,
 		Brief:            "游戏王开房工具",
 		Help: "-/记录房间 xxx\n  记录个人房间" +
