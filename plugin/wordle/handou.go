@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"maps"
 	"math/rand"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/FloatTech/imgfactory"
+	"github.com/sirupsen/logrus"
 
 	fcext "github.com/FloatTech/floatbox/ctxext"
 	"github.com/FloatTech/floatbox/file"
@@ -24,7 +26,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
 
-type idiomJson []struct {
+type idiomJson struct {
 	Derivation   string `json:"derivation"`
 	Example      string `json:"example"`
 	Explanation  string `json:"explanation"`
@@ -55,12 +57,13 @@ type GameInfo struct {
 }
 
 var (
-	kong          rune = ' '
-	pinFontSize        = 45.0
-	hanFontSize        = 150.0
-	pinyinFont    []byte
-	idiomWordList = make([]string, 0, 31648)
-	idiomInfoMap  = make(map[string]idiomInfo)
+	kong           rune = ' '
+	pinFontSize         = 45.0
+	hanFontSize         = 150.0
+	pinyinFont     []byte
+	idiomInfoMap   = make(map[string]idiomInfo)
+	userHabitsFile = file.BOTPATH + "/" + en.DataFolder() + "userHabits.json"
+	habits         = make(map[string]int)
 )
 
 func init() {
@@ -76,19 +79,40 @@ func init() {
 				ctx.SendChain(message.Text("ERROR: 读取字典时发生错误.\n", err))
 				return false
 			}
-			var config idiomJson
-			err = json.Unmarshal(idiomFile, &config)
+			var idiomFileJson []idiomJson
+			err = json.Unmarshal(idiomFile, &idiomFileJson)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: 解析字典时发生错误.\n", err))
 				return false
 			}
-			for _, v := range config {
-				idiomWordList = append(idiomWordList, v.Word)
+			for _, v := range idiomFileJson {
 				idiomInfoMap[v.Word] = idiomInfo{
 					Pinyin:      strings.Split(v.Pinyin, " "),
 					Derivation:  v.Derivation,
 					Explanation: v.Explanation,
 				}
+			}
+			// 构建用户习惯库（全局高频N-gram）
+			if file.IsNotExist(userHabitsFile) {
+				f, err := os.Create(userHabitsFile)
+				if err != nil {
+					ctx.SendChain(message.Text("ERROR: 创建用户习惯库时发生错误.\n", err))
+					return false
+				}
+				_ = f.Close()
+			} else {
+				habitsFile, err := os.ReadFile(userHabitsFile)
+				if err != nil {
+					ctx.SendChain(message.Text("ERROR: 读取字典时发生错误.\n", err))
+					return false
+				}
+				var config = make(map[string]int)
+				err = json.Unmarshal(habitsFile, &config)
+				if err != nil {
+					ctx.SendChain(message.Text("ERROR: 解析字典时发生错误.\n", err))
+					return false
+				}
+				habits = buildUserHabits(config)
 			}
 			data, err := file.GetLazyData(text.BoldFontFile, control.Md5File, true)
 			if err != nil {
@@ -98,101 +122,179 @@ func init() {
 			pinyinFont = data
 			return true
 		},
-	)).SetBlock(true).Limit(ctxext.LimitByUser).
-		Handle(func(ctx *zero.Ctx) {
-			target := idiomWordList[rand.Intn(len(idiomWordList))]
-			println("猜成语目标:", target)
-			chengyu := []rune(target)
-			tt := idiomInfoMap[target].Pinyin[0]
-			worldLength := len(chengyu)
-			game := newHandouGame(chengyu)
-			anser := anserOutString(target)
-			_, img, _ := game("")
-			ctx.Send(
-				message.ReplyWithMessage(ctx.Event.MessageID,
-					message.ImageBytes(img),
-					message.Text("你有", 7, "次机会猜出", worldLength, "字成语\n首字拼音为：", tt),
-				),
-			)
-			var next *zero.FutureEvent
-			if ctx.State["regex_matched"].([]string)[1] == "个人" {
-				next = zero.NewFutureEvent("message", 999, false, zero.RegexRule(fmt.Sprintf(`^([\p{Han}，,]){%d}$`, worldLength)),
-					zero.OnlyGroup, ctx.CheckSession())
-			} else {
-				next = zero.NewFutureEvent("message", 999, false, zero.RegexRule(fmt.Sprintf(`^([\p{Han}，,]){%d}$`, worldLength)),
-					zero.OnlyGroup, zero.CheckGroup(ctx.Event.GroupID))
-			}
-			var err error
-			var win bool
-			recv, cancel := next.Repeat()
-			defer cancel()
-			tick := time.NewTimer(105 * time.Second)
-			after := time.NewTimer(120 * time.Second)
-			for {
-				select {
-				case <-tick.C:
-					ctx.SendChain(message.Text("猜成语，你还有15s作答时间"))
-				case <-after.C:
+	)).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
+		target := poolIdiom()
+		chengyu := []rune(target)
+		tt := idiomInfoMap[target].Pinyin[0]
+		worldLength := len(chengyu)
+		game := newHandouGame(chengyu)
+		anser := anserOutString(target)
+		_, img, _ := game("")
+		ctx.Send(
+			message.ReplyWithMessage(ctx.Event.MessageID,
+				message.ImageBytes(img),
+				message.Text("你有", 7, "次机会猜出", worldLength, "字成语\n首字拼音为：", tt),
+			),
+		)
+		var next *zero.FutureEvent
+		if ctx.State["regex_matched"].([]string)[1] == "个人" {
+			next = zero.NewFutureEvent("message", 999, false, zero.RegexRule(fmt.Sprintf(`^([\p{Han}，,]){%d}$`, worldLength)),
+				zero.OnlyGroup, ctx.CheckSession())
+		} else {
+			next = zero.NewFutureEvent("message", 999, false, zero.RegexRule(fmt.Sprintf(`^([\p{Han}，,]){%d}$`, worldLength)),
+				zero.OnlyGroup, zero.CheckGroup(ctx.Event.GroupID))
+		}
+		var err error
+		var win bool
+		recv, cancel := next.Repeat()
+		defer cancel()
+		tick := time.NewTimer(105 * time.Second)
+		after := time.NewTimer(120 * time.Second)
+		for {
+			select {
+			case <-tick.C:
+				ctx.SendChain(message.Text("猜成语，你还有15s作答时间"))
+			case <-after.C:
+				ctx.Send(
+					message.ReplyWithMessage(ctx.Event.MessageID,
+						message.Text("猜成语超时，游戏结束...\n答案是: ", anser),
+					),
+				)
+				return
+			case c := <-recv:
+				tick.Reset(105 * time.Second)
+				after.Reset(120 * time.Second)
+				err = updateHabits(c.Event.Message.String())
+				if err != nil {
+					logrus.Warn("更新用户习惯库时发生错误: ", err)
+				}
+				win, img, err = game(c.Event.Message.String())
+				switch {
+				case win:
+					tick.Stop()
+					after.Stop()
 					ctx.Send(
-						message.ReplyWithMessage(ctx.Event.MessageID,
-							message.Text("猜成语超时，游戏结束...\n答案是: ", anser),
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.ImageBytes(img),
+							message.Text("太棒了，你猜出来了！\n答案是: ", anser),
 						),
 					)
 					return
-				case c := <-recv:
-					tick.Reset(105 * time.Second)
-					after.Reset(120 * time.Second)
-					win, img, err = game(c.Event.Message.String())
-					switch {
-					case win:
-						tick.Stop()
-						after.Stop()
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.ImageBytes(img),
-								message.Text("太棒了，你猜出来了！\n答案是: ", anser),
-							),
-						)
-						return
-					case err == errTimesRunOut:
-						tick.Stop()
-						after.Stop()
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.ImageBytes(img),
-								message.Text("游戏结束...\n答案是: ", anser),
-							),
-						)
-						return
-					case err == errLengthNotEnough:
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.Text("成语长度错误"),
-							),
-						)
-					case err == errHadGuessed:
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.Text("该成语已经猜过了"),
-							),
-						)
-					case err == errUnknownWord:
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.Text("你确定存在这样的成语吗？"),
-							),
-						)
-					default:
-						ctx.Send(
-							message.ReplyWithMessage(c.Event.MessageID,
-								message.ImageBytes(img),
-							),
-						)
-					}
+				case err == errTimesRunOut:
+					tick.Stop()
+					after.Stop()
+					ctx.Send(
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.ImageBytes(img),
+							message.Text("游戏结束...\n答案是: ", anser),
+						),
+					)
+					return
+				case err == errLengthNotEnough:
+					ctx.Send(
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.Text("成语长度错误"),
+						),
+					)
+				case err == errHadGuessed:
+					ctx.Send(
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.Text("该成语已经猜过了"),
+						),
+					)
+				case err == errUnknownWord:
+					ctx.Send(
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.Text("你确定存在这样的成语吗？"),
+						),
+					)
+				default:
+					ctx.Send(
+						message.ReplyWithMessage(c.Event.MessageID,
+							message.ImageBytes(img),
+						),
+					)
 				}
 			}
-		})
+		}
+	})
 }
+
+func poolIdiom() string {
+	prioritizedData := prioritizeData(idiomInfoMap)
+	if len(prioritizedData) > 0 {
+		return prioritizedData[rand.Intn(len(prioritizedData))]
+	}
+	// 如果没有优先级数据，则随机选择一个成语
+	keys := make([]string, 0, len(idiomInfoMap))
+	for k := range idiomInfoMap {
+		keys = append(keys, k)
+	}
+	return keys[rand.Intn(len(keys))]
+}
+
+// 保存用户配置
+func saveConfig(data map[string]int) error {
+	if reader, err := os.Create(userHabitsFile); err == nil {
+		err = json.NewEncoder(reader).Encode(&data)
+		if err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	return nil
+}
+
+// 统计N-gram频率
+func countNGrams(input string) map[string]int {
+	ngrams := make(map[string]int)
+	words := []rune(input)
+	for i := range words {
+		ngrams[string(words[i])]++
+	}
+	return ngrams
+}
+
+func updateHabits(input string) error {
+	descriptionNGrams := countNGrams(input) // 假设用2-gram匹配
+	maps.Copy(habits, descriptionNGrams)
+	return saveConfig(habits)
+}
+
+// 构建用户习惯库
+func buildUserHabits(inputs map[string]int) map[string]int {
+	habits := make(map[string]int)
+	for word := range inputs {
+		ngrams := countNGrams(word)
+		for ngram, count := range ngrams {
+			habits[ngram] += count
+		}
+	}
+	return habits
+}
+
+// 优先抽取包含高频N-gram的数据
+func prioritizeData(data map[string]idiomInfo) []string {
+	var prioritized []string
+	for world := range data {
+		descriptionNGrams := countNGrams(world) // 假设用2-gram匹配
+		score := 0
+		for ngram, count := range descriptionNGrams {
+			if habitCount, exists := habits[ngram]; exists {
+				score += habitCount * count // 权重可调整
+			}
+		}
+		if score > len(habits) { // 仅保留匹配到高频N-gram的数据
+			prioritized = append(prioritized, world)
+		}
+		if len(prioritized) > 9 {
+			break
+		}
+	}
+	return prioritized
+}
+
 func newHandouGame(target []rune) func(string) (bool, []byte, error) {
 	var class = len(target)
 	tt := idiomInfoMap[string(target)].Pinyin
@@ -201,10 +303,10 @@ func newHandouGame(target []rune) func(string) (bool, []byte, error) {
 	tickhanByte := make([]string, class)
 
 	// 初始化 tick，确保 tick[i][0] 和 tick[i][1] 有正确的初始值
-	for i := 0; i < class; i++ {
+	for i := range class {
 		tick[i] = make([]string, 2)
 		if i == 0 {
-			tick[i][0] = tt[i] // 初始化为目标拼音
+			tick[i][0] = tt[0] // 初始化为目标拼音
 		} else {
 			tick[i][0] = "" // 防止越界
 		}
@@ -457,7 +559,7 @@ func drawHanBloack(hanFontSize, pinFontSize float64, han []rune, pinyin []string
 	ctx.SetColor(color.RGBA{255, 255, 255, 255})
 	ctx.Clear()
 
-	for i := 0; i < class; i++ {
+	for i := range class {
 		x := float64(space + i*bloackPinWidth)
 
 		// 绘制拼音

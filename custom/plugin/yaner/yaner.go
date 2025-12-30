@@ -105,13 +105,15 @@ func init() {
 			return
 		}
 		sm.Delete(gid)
-		filepath := file.BOTPATH + "/" + engine.DataFolder() + "五时已到.gif"
-		pic, err := os.ReadFile(filepath)
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]", err))
-			return
+		if rand.Intn(100) < 50 {
+			filepath := file.BOTPATH + "/" + engine.DataFolder() + "五时已到.gif"
+			pic, err := os.ReadFile(filepath)
+			if err != nil {
+				ctx.SendChain(message.Text("[ERROR]", err))
+				return
+			}
+			ctx.SendChain(message.ImageBytes(pic))
 		}
-		ctx.SendChain(message.ImageBytes(pic))
 	})
 	engine.OnRegex(`^(\.|。)(r|R)\s*([1-9]\d*)?\s*(d|D)?\s*([1-9]\d*)?(\s*(.*))?$`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		defaultDice := 100

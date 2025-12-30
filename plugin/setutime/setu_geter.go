@@ -38,7 +38,7 @@ func (p *imgpool) List() (l []string) {
 	defer p.dbmu.RUnlock()
 	l, err = p.db.ListTables()
 	if err != nil {
-		l = []string{"涩图", "二次元", "风景", "车万"}
+		l = []string{"涩图", "二次元", "风景", "车万", "游戏王"}
 	}
 	return l
 }
@@ -78,9 +78,12 @@ func init() { // 插件主体
 		return true
 	})
 
-	engine.OnRegex(`^来份(.+)$`, getdb, fcext.ValueInList(func(ctx *zero.Ctx) string { return ctx.State["regex_matched"].([]string)[1] }, pool)).SetBlock(true).Limit(ctxext.LimitByUser).
+	engine.OnRegex(`^来份色图\s*(.+)$`, getdb, fcext.ValueInList(func(ctx *zero.Ctx) string { return ctx.State["regex_matched"].([]string)[1] }, pool)).SetBlock(true).Limit(ctxext.LimitByUser).
 		Handle(func(ctx *zero.Ctx) {
 			var imgtype = ctx.State["regex_matched"].([]string)[1]
+			if imgtype == "" {
+				imgtype = "涩图"
+			}
 			// 补充池子
 			go pool.fill(ctx, imgtype)
 			// 如果没有缓存，阻塞10秒

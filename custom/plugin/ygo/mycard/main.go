@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -22,8 +23,9 @@ import (
 )
 
 const (
-	myCardPieAPI    = "https://sapi.moecube.com:444/ygopro/analytics/deck/type?type=%s&source=mycard-%s"
-	myCardPlayerAPI = "https://sapi.moecube.com:444/ygopro/arena/user?username=%s"
+	myCardPieAPI    = "https://sapi.moecube.com:444/ygopro/analytics/deck/type?type=%v&source=mycard-%v"
+	myCardPlayerAPI = "https://sapi.moecube.com:444/ygopro/arena/user?username="
+	ua              = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
 )
 
 type myCardData []struct {
@@ -136,8 +138,8 @@ func init() {
 			return
 		}
 		ctx.SendChain(message.Reply(ctx.Event.MessageID), message.Text("正在获取数据，请稍候..."))
-		url := fmt.Sprintf(myCardPlayerAPI, name)
-		data, err := web.GetData(url)
+		url := myCardPlayerAPI + url.QueryEscape(name)
+		data, err := web.RequestDataWith(web.NewDefaultClient(), url, "GET", "https://mycard.world/", ua, nil)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return

@@ -170,8 +170,7 @@ func init() {
 		gameRoom.Store(gid, gameInfo)
 		mid := ctx.SendChain(message.ImageBytes(gameInfo.Pic))
 		if mid.ID() != 0 {
-			// _ = wallet.InsertWalletOf(gameInfo.UID, -1)
-			ctx.SendChain(message.Text("(第", elapsed, "题)请回答该图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏\n每次提示扣1;\n猜卡失败或取消会扣除5", wallet.GetWalletName()))
+			ctx.SendChain(message.Text("(第", elapsed, "题)请回答该图的卡名\n以“我猜xxx”格式回答\n(xxx需包含卡名1/4以上)\n或发“提示”得提示;“取消”结束游戏\n\n无人答出则发起者会扣除5", wallet.GetWalletName()))
 		}
 	})
 
@@ -206,7 +205,6 @@ func init() {
 		}
 		if diff == 0 && gameInfo.AnswerCount >= 6 {
 			defer gameRoom.Delete(gid)
-			_ = wallet.InsertWalletOf(gameInfo.UID, -5)
 			picPath := cachePath + strconv.Itoa(gameInfo.CID) + ".jpg"
 			pic, err := os.ReadFile(picPath)
 			if err != nil {
@@ -228,10 +226,13 @@ func init() {
 			return
 		}
 		txt := ""
-		if diff == 100 {
-			err := wallet.InsertWalletOf(ctx.Event.UserID, 5)
-			if err == nil {
-				txt = "\n满分回答,奖励5" + wallet.GetWalletName()
+		if diff > 45 {
+			getMoney := (10 - gameInfo.Worry - gameInfo.TickCount) * (diff - 45) / 45
+			if getMoney > 0 {
+				err := wallet.InsertWalletOf(ctx.Event.UserID, getMoney)
+				if err == nil {
+					txt = "\n回答正确,奖励" + strconv.Itoa(getMoney) + wallet.GetWalletName()
+				}
 			}
 		}
 		defer gameRoom.Delete(gid)
@@ -267,7 +268,6 @@ func init() {
 		ctx.Send(message.ReplyWithMessage(msgID, message.Text(gameInfo.Info[gameInfo.TickCount])))
 		gameInfo.TickCount++
 		gameRoom.Store(gid, gameInfo)
-		_ = wallet.InsertWalletOf(ctx.Event.UserID, -1)
 	})
 	ygoguess.OnFullMatch("取消", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByUser).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID

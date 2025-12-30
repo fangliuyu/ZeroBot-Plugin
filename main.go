@@ -105,9 +105,10 @@ import (
 
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/funny"             // 笑话
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/genshin"           // 原神抽卡
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"        // 制图
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github"     // 搜索GitHub仓库
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic" // 猜歌
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/gif"    // 制图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/github" // 搜索GitHub仓库
+
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/guessmusic" // 猜歌
 
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/hitokoto"          // 一言
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/hs"                // 炉石
@@ -119,7 +120,7 @@ import (
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/lolicon"           // lolicon 随机图片
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/lolimi"            // 桑帛云 API
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/magicprompt"       // magicprompt吟唱提示
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 钓鱼模拟器
+	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/mcfish" // 钓鱼模拟器
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/midicreate"        // 简易midi音乐制作
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/minecraftobserver" // Minecraft服务器监控&订阅
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/movies"            // 电影插件
