@@ -89,7 +89,7 @@ func init() {
 		})
 	engine.On("message/group", zero.OnlyGroup).SetBlock(false).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
-		raw := ctx.Event.RawMessage
+		raw := ctx.Event.Message.CQString()
 		r, ok := sm.Load(gid)
 		if !ok || r[3:] != raw {
 			sm.Store(gid, "0: "+raw)

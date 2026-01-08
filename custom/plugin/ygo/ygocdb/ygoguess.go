@@ -227,7 +227,8 @@ func init() {
 		}
 		txt := ""
 		if diff > 45 {
-			getMoney := (10 - gameInfo.Worry - gameInfo.TickCount) * (diff - 45) / 45
+			sin := time.Since(gameInfo.LastTime).Minutes()
+			getMoney := (10 - gameInfo.Worry - gameInfo.TickCount - 2*int(sin)) * (diff - 45) / 45
 			if getMoney > 0 {
 				err := wallet.InsertWalletOf(ctx.Event.UserID, getMoney)
 				if err == nil {

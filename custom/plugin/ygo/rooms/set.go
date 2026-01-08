@@ -3,10 +3,13 @@ package ygo
 
 import (
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	zbmath "github.com/FloatTech/floatbox/math"
+	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
@@ -171,5 +174,44 @@ func init() {
 		finalname += name
 		ctx.SendChain(message.Text(zoomr[rand.Intn(len(zoomr))]))
 		ctx.SendChain(message.Text(finalname))
+		gid := ctx.Event.GroupID
+		// 检测是否有服务器绑定
+		infos, err := database.find(serverTable, gid)
+		if err != nil {
+			logrus.Warnln("[ygorooms播报] ERROR: ", err)
+			return
+		}
+		if infos == nil {
+			infos = serverDB{}
+		}
+		infosData := infos.(serverDB)
+		if infosData.Server == "" && (gid != 759851475 && gid != 1026352282) {
+			return
+		}
+		// 添加监听
+		value, _ := gameGroup.LoadOrStore(gid, []string{})
+		roomlist := value.([]string)
+		if slices.Contains(roomlist, finalname) {
+			ctx.SendChain(message.Text("检测到ygo房间: ", finalname, "\n该房间已处于监听状态"))
+			return
+		}
+		roomlist = append(roomlist, finalname)
+		gameGroup.Store(gid, roomlist)
+		ctx.SendChain(message.Text("检测到ygo房间: ", finalname, "\n开始播报房间状态"))
+
+		if infosData.Server == "" && (gid == 759851475 || gid == 1026352282) {
+			infosData.Server = defaultApi
+		}
+		rooms, err := getApiRooms(infosData.Server)
+		if err != nil {
+			ctx.SendChain(message.Text("[steam] ERROR: ", err))
+			return
+		}
+		newData := rooms.filterApiRooms(finalname)
+		newRoom := GameInfo{
+			RoomInfo:  newData,
+			StartTime: time.Now(),
+		}
+		gameRoom.Store(finalname, newRoom)
 	})
 }

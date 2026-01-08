@@ -199,6 +199,13 @@ func init() {
 							if !waited {
 								newmsg = updateMsg(mode, user, userData)
 							}
+							if newmsg == "" {
+								if userData.Pos < 3 {
+									newmsg += "等待中\n"
+								} else {
+									newmsg += "观战中\n"
+								}
+							}
 							break
 						}
 					}
@@ -210,7 +217,7 @@ func init() {
 								}
 								newmsg += "LP:" + strconv.Itoa(userData.Status.LP) + " 场值评估:" + strconv.Itoa(userData.Status.Cards) + "\n"
 							} else {
-								newmsg += "观战中"
+								newmsg += "观战中\n"
 							}
 						} else {
 							newmsg += " 加入房间\n"
