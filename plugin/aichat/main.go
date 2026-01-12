@@ -2,6 +2,7 @@
 package aichat
 
 import (
+	"encoding/json"
 	"math/rand"
 	"strings"
 	"time"
@@ -50,6 +51,10 @@ func init() {
 		stor, ok := ctx.State[zero.StateKeyPrefixKeep+"aichatcfg_stor__"].(chat.Storage)
 		if !ok {
 			logrus.Warnln("ERROR: cannot get stor")
+			return false
+		}
+		if _, ok := ctx.State[zero.StateKeyPrefixKeep+"_chat_ag_hooked__"]; !ok {
+			logrus.Warnln("ERROR: ctx has not been hooked by agent")
 			return false
 		}
 		if !(ctx.ExtractPlainText() != "" &&
@@ -113,26 +118,14 @@ func init() {
 			hasresp := false
 			ispuremsg := false
 			hassavemem := false
-			var (
-				reqs []zero.APIRequest
-				cl   func()
-			)
-			defer func() {
-				if cl != nil {
-					cl()
-				}
-			}()
 			for i := 0; i < 8; i++ { // 最大运行 8 轮因为问答上下文只有 16
-				reqs, cl = chat.CallAgent(ag, zero.SuperUserPermission(ctx), i+1, x, mod, gid, role)
-				if cl != nil {
-					cl()
-					cl = nil
-				}
+				reqs := chat.CallAgent(ag, zero.SuperUserPermission(ctx), i+1, x, mod, gid, role)
 				if len(reqs) == 0 {
 					logrus.Debugln("[aichat] agent call got empty response")
 					break
 				}
 				hasresp = true
+				ctx.State[zero.StateKeyPrefixKeep+"_chat_ag_triggered__"] = struct{}{}
 				for _, req := range reqs {
 					if req.Action == goba.SVM { // is a fake action
 						if hassavemem {
@@ -151,7 +144,17 @@ func init() {
 						}
 						ispuremsg = true
 					}
-					_ = ctx.CallAction(req.Action, req.Params)
+					logrus.Debugln("[chat] agent triggered", gid, "add requ:", &req)
+					ag.AddRequest(gid, &req)
+					rsp := ctx.CallAction(req.Action, req.Params)
+					logrus.Debugln("[chat] agent triggered", gid, "add resp:", &rsp)
+					ag.AddResponse(gid, &goba.APIResponse{
+						Status:  rsp.Status,
+						Data:    json.RawMessage(rsp.Data.Raw),
+						Message: rsp.Message,
+						Wording: rsp.Wording,
+						RetCode: rsp.RetCode,
+					})
 				}
 			}
 			if hasresp {
@@ -189,7 +192,7 @@ func init() {
 				if t == "" {
 					continue
 				}
-				logrus.Infoln("[aichat] 回复内容:", t)
+				logrus.Debugln("[aichat] 回复内容:", t)
 				recCfg := airecord.GetConfig()
 				record := ""
 				if !fastfailnorecord && !stor.NoRecord() {

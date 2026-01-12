@@ -63,6 +63,7 @@ var (
 	pinyinFont     []byte
 	idiomInfoMap   = make(map[string]idiomInfo)
 	userHabitsFile = file.BOTPATH + "/" + en.DataFolder() + "userHabits.json"
+	mu             sync.Mutex
 	habits         = make(map[string]int)
 )
 
@@ -235,6 +236,8 @@ func poolIdiom() string {
 
 // 保存用户配置
 func saveConfig(data map[string]int) error {
+	mu.Lock()
+	defer mu.Unlock()
 	if reader, err := os.Create(userHabitsFile); err == nil {
 		err = json.NewEncoder(reader).Encode(&data)
 		if err != nil {

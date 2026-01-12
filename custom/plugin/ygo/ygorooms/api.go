@@ -36,7 +36,8 @@ type UserStatus struct {
 	Cards int `json:"cards"`
 }
 
-func getApiRooms(server string) (data RoomsApiData, err error) {
+// GetApiRooms 获取API房间数据
+func GetApiRooms(server string) (data RoomsApiData, err error) {
 	rep, err := web.GetData(server)
 	if err != nil {
 		return
@@ -45,13 +46,14 @@ func getApiRooms(server string) (data RoomsApiData, err error) {
 	return
 }
 
-func (data *RoomsApiData) filterApiRooms(roomName string) RoomInfo {
+// FilterApiRooms 过滤API房间
+func FilterApiRooms(data *RoomsApiData, roomName string) *RoomInfo {
 	for _, room := range data.Rooms {
 		if room.RoomName == roomName {
-			return room
+			return &room
 		}
 	}
-	return RoomInfo{}
+	return nil
 }
 
 func (room *RoomInfo) getGameMode() string {
@@ -63,7 +65,7 @@ func (room *RoomInfo) getGameMode() string {
 	case 2:
 		return "2V2"
 	default:
-		return "Unkown"
+		return "Unknown"
 	}
 }
 

@@ -8,8 +8,8 @@ import (
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/jihuanshe" // 游戏王插件-集换社
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/mycard"    // 游戏王插件-萌卡类
-	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/rooms"     // 游戏王插件-房间读取
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/ygocdb"    // 游戏王插件-白鸽查卡
+	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/ygorooms"  // 游戏王插件-房间读取
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/baidufanyi" // 百度翻译
 

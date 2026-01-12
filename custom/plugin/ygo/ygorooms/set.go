@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	zbmath "github.com/FloatTech/floatbox/math"
 	"github.com/sirupsen/logrus"
@@ -72,64 +71,96 @@ func init() {
 		ctx.SendChain(message.Text(ygorule))
 	})
 	// 房间
-	engine.OnPrefix("/记录房间").Handle(func(ctx *zero.Ctx) {
+	engine.OnPrefix("/记录房间", getDB).Handle(func(ctx *zero.Ctx) {
 		roomName := strings.TrimSpace(ctx.State["args"].(string))
-		roomData := playerDB{
+		roomData := dbData{
 			ID:   ctx.Event.UserID,
-			Room: roomName,
+			Info: roomName,
 		}
-		if err := database.update(roomTable, &roomData); err != nil {
+		if err := database.update(roomTable, roomData); err != nil {
 			ctx.SendChain(message.Text("[ygorooms] ERROR: ", err, "\nEXP: 记录房间失败"))
 			return
 		}
 		ctx.SendChain(message.Text("房间记录成功"))
 	})
-	engine.OnShell("/房间", RoomRule{}).Handle(func(ctx *zero.Ctx) {
+	engine.OnShell("房间", RoomRule{}, getDB).Handle(func(ctx *zero.Ctx) {
 		rule := ctx.State["flag"].(*RoomRule) // Note: 指针类型
-		data, err := database.find(roomTable, ctx.Event.UserID)
+		msg := ctx.MessageString()
+		roomData, err := database.find(roomTable, ctx.Event.UserID)
 		if err != nil {
 			ctx.SendChain(message.Text("[ygorooms] ERROR: ", err, "\nEXP: 获取房间失败, 将随机生成房间"))
 		}
-		roomData := data.(playerDB)
+		roomname := []string{}
 		name := ""
-		if roomData.Room != "" {
-			name = roomData.Room
+		if roomData.Info != "" {
+			if strings.Contains(roomData.Info, "#") {
+				data := strings.SplitN(roomData.Info, "#", 2)
+				roomname = append(roomname, strings.Split(data[0], ",")...)
+				name = data[1]
+			}
 		}
 		if name == "" {
 			for _, v := range ctx.State["args"].([]string) {
-				if name != "" {
-					name += "的"
-				}
 				name += v
 			}
 		}
 		if name == "" {
 			name = zooms[rand.Intn(len(zooms))]
 		}
-		roomname := []string{}
-		if rule.Doubel {
+
+		if rule.Doubel && !slices.Contains(roomname, "T") {
 			roomname = append(roomname, "T")
 		}
-		if rule.Match {
+		if rule.Match && !slices.Contains(roomname, "M") {
 			roomname = append(roomname, "M")
 		}
-		if (rule.TM >= 0 || rule.T >= 0) && (zbmath.Max(rule.TM, rule.T) <= 99) {
+		if (strings.Contains(msg, "tm") || strings.Contains(msg, "时间")) && (rule.TM >= 0 || rule.T >= 0) && (zbmath.Max(rule.TM, rule.T) <= 999) {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "TM") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
 			timeSet := zbmath.Max(rule.TM, rule.T)
 			roomname = append(roomname, "TM"+strconv.Itoa(timeSet))
 		}
-		if (rule.LP > 0 || rule.L > 0) && (zbmath.Max(rule.LP, rule.L) <= 99999) {
+		if (strings.Contains(msg, "lp") || strings.Contains(msg, "血")) && (rule.LP > 0 || rule.L > 0) && (zbmath.Max(rule.LP, rule.L) <= 99999) {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "LP") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
 			lpSet := zbmath.Max(rule.LP, rule.L)
 			roomname = append(roomname, "LP"+strconv.Itoa(lpSet))
 		}
-		if (rule.Draw >= 0 || rule.Dr >= 0) && (zbmath.Max(rule.Draw, rule.Dr) <= 35) {
+		if (strings.Contains(msg, "dr") || strings.Contains(msg, "抽")) && (rule.Draw >= 0 || rule.Dr >= 0) && (zbmath.Max(rule.Draw, rule.Dr) <= 35) {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "DR") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
 			drawSet := zbmath.Max(rule.Draw, rule.Dr)
 			roomname = append(roomname, "DR"+strconv.Itoa(drawSet))
 		}
-		if (rule.Hand >= 0 || rule.H >= 0) && (zbmath.Max(rule.Hand, rule.H) <= 40) {
+		if (strings.Contains(msg, "st") || strings.Contains(msg, "起")) && (rule.Hand >= 0 || rule.H >= 0) && (zbmath.Max(rule.Hand, rule.H) <= 40) {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "ST") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
 			handSet := zbmath.Max(rule.Hand, rule.H)
 			roomname = append(roomname, "ST"+strconv.Itoa(handSet))
 		}
 		if rule.Master != "" || rule.M != "" {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "MR") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
 			masterSet := rule.Master
 			if masterSet == "" {
 				masterSet = rule.M
@@ -143,21 +174,34 @@ func init() {
 				roomname = append(roomname, "MR"+masterSet)
 			}
 		}
-		if rule.Rule >= 0 || rule.R >= 0 {
-			ruleSet := zbmath.Max(rule.Rule, rule.R)
-			if ruleSet == 0 {
+		if (strings.Contains(msg, "lf") || strings.Contains(msg, "卡表")) && rule.Rule > 0 || rule.R > 0 || rule.Rule == -1 || rule.R == -1 {
+			for index, v := range roomname {
+				if strings.HasPrefix(v, "LF") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+				if strings.HasPrefix(v, "NF") {
+					roomname = append(roomname[:index], roomname[index+1:]...)
+					break
+				}
+			}
+			ruleSet := -1
+			if rule.Rule != -1 && rule.R != -1 {
+				ruleSet = zbmath.Max(rule.Rule, rule.R)
+			}
+			if ruleSet == -1 {
 				roomname = append(roomname, "NF")
 			} else {
 				roomname = append(roomname, "LF"+strconv.Itoa(rule.Rule))
 			}
 		}
-		if rule.OT {
+		if rule.OT && !slices.Contains(roomname, "OT") {
 			roomname = append(roomname, "OT")
 		}
-		if rule.C {
+		if rule.C && !slices.Contains(roomname, "NC") {
 			roomname = append(roomname, "NC")
 		}
-		if rule.F {
+		if rule.F && !slices.Contains(roomname, "NS") {
 			roomname = append(roomname, "NS")
 		}
 		finalname := strings.Join(roomname, ",")
@@ -175,43 +219,26 @@ func init() {
 		ctx.SendChain(message.Text(zoomr[rand.Intn(len(zoomr))]))
 		ctx.SendChain(message.Text(finalname))
 		gid := ctx.Event.GroupID
-		// 检测是否有服务器绑定
-		infos, err := database.find(serverTable, gid)
+		// 获取服务器信息
+		server, err := getServerForGroup(gid)
 		if err != nil {
-			logrus.Warnln("[ygorooms播报] ERROR: ", err)
+			logrus.Warnln("[ygorooms] 获取服务器失败:", err)
 			return
 		}
-		if infos == nil {
-			infos = serverDB{}
-		}
-		infosData := infos.(serverDB)
-		if infosData.Server == "" && (gid != 759851475 && gid != 1026352282) {
+		if server == "" {
 			return
 		}
-		// 添加监听
-		value, _ := gameGroup.LoadOrStore(gid, []string{})
-		roomlist := value.([]string)
-		if slices.Contains(roomlist, finalname) {
+
+		// 检查是否已监听
+		if gameGroup.HasRoom(gid, finalname) {
 			ctx.SendChain(message.Text("检测到ygo房间: ", finalname, "\n该房间已处于监听状态"))
 			return
 		}
-		roomlist = append(roomlist, finalname)
-		gameGroup.Store(gid, roomlist)
+		newRoomInfo := RoomInfo{
+			RoomName: finalname,
+		}
+		// 添加监听
+		gameGroup.AddRoom(gid, finalname, newRoomInfo, server)
 		ctx.SendChain(message.Text("检测到ygo房间: ", finalname, "\n开始播报房间状态"))
-
-		if infosData.Server == "" && (gid == 759851475 || gid == 1026352282) {
-			infosData.Server = defaultApi
-		}
-		rooms, err := getApiRooms(infosData.Server)
-		if err != nil {
-			ctx.SendChain(message.Text("[steam] ERROR: ", err))
-			return
-		}
-		newData := rooms.filterApiRooms(finalname)
-		newRoom := GameInfo{
-			RoomInfo:  newData,
-			StartTime: time.Now(),
-		}
-		gameRoom.Store(finalname, newRoom)
 	})
 }
