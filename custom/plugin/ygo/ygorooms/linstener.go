@@ -129,10 +129,10 @@ func init() {
 					gameGroup.UpdateRoom(result.groupID, result.roomName, func(info *GameInfo) {
 						info.RoomInfo = *result.newRoomInfo
 					})
-				}
-				// 发送消息
-				if result.message != "" {
-					ctx.SendGroupMessage(result.groupID, message.Text(result.message))
+					// 发送消息
+					if result.message != "" {
+						ctx.SendGroupMessage(result.groupID, message.Text(result.message))
+					}
 				}
 
 				// 移除已结束的房间
@@ -223,11 +223,17 @@ func processSingleRoom(roomsData *RoomsApiData, roomInfo *GameInfo) *roomUpdateR
 		return nil
 	}
 
+	// 检查状态是否变化
+	// oldStatus := roomInfo.RoomInfo.Istart
+	// newStatus := newRoomInfo.Istart
+	// // 判断是否需要发送消息
+	// shouldSend := false
+	// if oldStatus != newStatus {
+	// 	shouldSend = true
+	// }
+
 	// 生成消息
 	msg, shouldSend := generateRoomMessage(newRoomInfo, &roomInfo.RoomInfo)
-	if !shouldSend {
-		newRoomInfo = &roomInfo.RoomInfo // 不更新房间信息
-	}
 
 	return &roomUpdateResult{
 		groupID:      roomInfo.GroupID,
@@ -253,6 +259,7 @@ func generateRoomMessage(newRoom, oldRoom *RoomInfo) (string, bool) {
 	msg.WriteString("玩家状态:\n")
 	waited := strings.Contains(status, "等待")
 	shouldSend := false
+	playerMsg := make(map[int]string, len(newRoom.Users))
 	for _, userData := range newRoom.Users {
 		userName := userData.Name
 		msg.WriteString("[玩家" + strconv.Itoa(userData.Pos) + "] " + userName + " :\n")
@@ -283,11 +290,27 @@ func generateRoomMessage(newRoom, oldRoom *RoomInfo) (string, bool) {
 				userMsg += "加入房间"
 			}
 		}
+		playerMsg[userData.Pos] = userMsg
 
-		msg.WriteString(userMsg + "\n")
+	}
+	// 如果是2V2模式，血量共享
+	if mode == "2V2" {
+		if strings.Contains(playerMsg[0], "16000") && !strings.Contains(playerMsg[0], "->") {
+			playerMsg[0] = playerMsg[1]
+		}
+		if strings.Contains(playerMsg[3], "16000") && !strings.Contains(playerMsg[3], "->") {
+			playerMsg[1] = playerMsg[2]
+		} else {
+			playerMsg[1] = playerMsg[3]
+		}
+		delete(playerMsg, 2)
+		delete(playerMsg, 3)
+	}
+	for _, msgPart := range playerMsg {
+		msg.WriteString(msgPart + "\n")
 	}
 
-	if status != oldRoom.getGameStatus() {
+	if newRoom.Istart != oldRoom.Istart {
 		shouldSend = true
 	}
 
@@ -310,13 +333,15 @@ func updateMsg(mode string, oldData, newData UserInfo) (newmsg string, shouldSen
 		} else {
 			newmsg += "LP:" + strconv.Itoa(newData.Status.LP)
 		}
-		if oldData.Status.Cards != newData.Status.Cards {
-			if zbmath.Abs(newData.Status.Cards-oldData.Status.Cards) > 5 {
-				shouldSend = true
+		if mode != "2V2" {
+			if oldData.Status.Cards != newData.Status.Cards {
+				if zbmath.Abs(newData.Status.Cards-oldData.Status.Cards) > 5 {
+					shouldSend = true
+				}
+				newmsg += " 场值评估:" + strconv.Itoa(oldData.Status.Cards) + "->" + strconv.Itoa(newData.Status.Cards) + "\n"
+			} else {
+				newmsg += " 场值评估:" + strconv.Itoa(newData.Status.Cards) + "\n"
 			}
-			newmsg += " 场值评估:" + strconv.Itoa(oldData.Status.Cards) + "->" + strconv.Itoa(newData.Status.Cards) + "\n"
-		} else {
-			newmsg += " 场值评估:" + strconv.Itoa(newData.Status.Cards) + "\n"
 		}
 	} else {
 		newmsg += "观战中"

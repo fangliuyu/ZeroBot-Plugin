@@ -381,6 +381,9 @@ func (sql *婚姻登记) 判断CD(gid, uid int64, model string, cdtime float64) 
 	}
 	cdinfo := cdsheet{}
 	_ = sql.db.Find("cdsheet", &cdinfo, limitID, gid, uid, model)
+	if time.Now().Year() != time.Unix(cdinfo.Time, 0).Year() {
+		_ = sql.db.Drop("favorability") // 新年重置好感度
+	}
 	if time.Since(time.Unix(cdinfo.Time, 0)).Hours() > cdtime {
 		// 如果CD已过就删除
 		err = sql.db.Del("cdsheet", limitID, gid, uid, model)

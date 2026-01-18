@@ -16,4 +16,6 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/cybercat" // 赛博养猫
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/wife" // 抽老婆
+
+	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/handou" // 抽老婆
 )

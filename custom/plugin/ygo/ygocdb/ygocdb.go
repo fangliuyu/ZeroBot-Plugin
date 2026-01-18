@@ -235,19 +235,21 @@ func init() {
 			ctx.SendChain(message.Image(picherf + strconv.Itoa(result[0].ID) + ".jpg"))
 			return
 		case function == "s":
-			cardtextout := Cardtext(result, 0)
+			cardtextout := Cardtext(result[0])
 			ctx.SendChain(message.Text(cardtextout))
 			return
-		case function == "d" && maxpage == 1:
-			cardtextout := Cardtext(result, 0)
-			ctx.SendChain(message.Image(picherf+strconv.Itoa(result[0].ID)+".jpg"), message.Text(cardtextout))
+		case function == "b" && maxpage == 1:
+			pic, err := drawimage(result[0])
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: ", err))
+				return
+			}
+			ctx.SendChain(message.ImageBytes(pic))
 			return
 		}
 		var listName []string
-		var listid []int
 		for _, v := range result {
 			listName = append(listName, strconv.Itoa(len(listName))+"."+v.CnName)
-			listid = append(listid, v.ID)
 		}
 		var (
 			currentPage = 10
@@ -311,8 +313,12 @@ func init() {
 						if cardint < nextpage*10+currentPage {
 							cancel()
 							after.Stop()
-							cardtextout := Cardtext(result, cardint)
-							ctx.SendChain(message.Image(picherf+strconv.Itoa(listid[cardint])+".jpg"), message.Text(cardtextout))
+							pic, err := drawimage(result[cardint])
+							if err != nil {
+								ctx.SendChain(message.Text("ERROR: ", err))
+								return
+							}
+							ctx.SendChain(message.ImageBytes(pic))
 							return
 						}
 						after.Reset(20 * time.Second)
@@ -621,49 +627,49 @@ func GetCardInfo(cardName string) (cardData []cardInfo, err error) {
 	return
 }
 
-func Cardtext(list []cardInfo, cardid int) string {
+func Cardtext(card cardInfo) string {
 	var cardtext []string
-	name := "C N卡名: " + list[cardid].CnName
+	name := "C N卡名: " + card.CnName
 	cardtext = append(cardtext, name)
-	if list[cardid].NwbbsN != "" {
-		name = "N W卡名: " + list[cardid].NwbbsN
+	if card.NwbbsN != "" {
+		name = "N W卡名: " + card.NwbbsN
 		cardtext = append(cardtext, name)
 	}
-	if list[cardid].CnocgN != "" {
-		name = "简中卡名: " + list[cardid].CnocgN
+	if card.CnocgN != "" {
+		name = "简中卡名: " + card.CnocgN
 		cardtext = append(cardtext, name)
 	}
-	if list[cardid].NwbbsN != "" {
-		name = "M D卡名: " + list[cardid].MdName
+	if card.NwbbsN != "" {
+		name = "M D卡名: " + card.MdName
 		cardtext = append(cardtext, name)
 	}
-	if list[cardid].JpName != "" {
+	if card.JpName != "" {
 		name = "日本卡名:"
-		if list[cardid].JpRuby != "" && list[cardid].JpName != list[cardid].JpRuby {
-			name += "\n    " + list[cardid].JpRuby
+		if card.JpRuby != "" && card.JpName != card.JpRuby {
+			name += "\n    " + card.JpRuby
 		}
-		name += "\n    " + list[cardid].JpName
+		name += "\n    " + card.JpName
 		cardtext = append(cardtext, name)
 	}
-	if list[cardid].EnName != "" {
-		name = "英文卡名:\n    " + list[cardid].EnName
+	if card.EnName != "" {
+		name = "英文卡名:\n    " + card.EnName
 		cardtext = append(cardtext, name)
 	}
-	if list[cardid].ScName != "" {
-		name = "其他译名: " + list[cardid].ScName
+	if card.ScName != "" {
+		name = "其他译名: " + card.ScName
 		cardtext = append(cardtext, name)
 	}
-	cardtext = append(cardtext, "卡片密码："+strconv.Itoa(list[cardid].ID))
-	cardtext = append(cardtext, list[cardid].Text.Types)
-	if list[cardid].Text.Pdesc != "" {
-		cardtext = append(cardtext, "[灵摆效果]\n"+list[cardid].Text.Pdesc)
-		if strings.Contains(list[cardid].Text.Types, "效果") {
+	cardtext = append(cardtext, "卡片密码："+strconv.Itoa(card.ID))
+	cardtext = append(cardtext, card.Text.Types)
+	if card.Text.Pdesc != "" {
+		cardtext = append(cardtext, "[灵摆效果]\n"+card.Text.Pdesc)
+		if strings.Contains(card.Text.Types, "效果") {
 			cardtext = append(cardtext, "[怪兽效果]")
 		} else {
 			cardtext = append(cardtext, "[怪兽描述]")
 		}
 	}
-	cardtext = append(cardtext, list[cardid].Text.Desc)
+	cardtext = append(cardtext, card.Text.Desc)
 	return strings.Join(cardtext, "\n")
 }
 

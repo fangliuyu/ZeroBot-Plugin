@@ -48,13 +48,13 @@ func init() {
 			case ad == "admin" && rand.Intn(11) < 3:
 				ctx.SendChain(randText(
 					"大坏蛋，吃"+nickname+"一拳!",
-					nickname+"生气了！ヾ(≧へ≦)〃",
+					"哼,"+nickname+"生气了！ヾ(≧へ≦)〃",
 					"来自"+nickname+"对大坏蛋的反击!",
 				))
 				ctx.SetGroupBan(
 					ctx.Event.GroupID,
-					ctx.Event.UserID, // 要禁言的人的qq
-					rand.Int63n(5)+1, // 要禁言的时间
+					ctx.Event.UserID,      // 要禁言的人的qq
+					(rand.Int63n(5)+1)*60, // 要禁言的时间
 				)
 			// case rand.Intn(11) < 3:
 			// 	ctx.SendChain(randText(
@@ -66,8 +66,8 @@ func init() {
 			default:
 				ctx.SendChain(randText(
 					"捏"+nickname+"的人是大坏蛋！",
-					nickname+"的脸不是拿来捏的！",
-					nickname+"要生气了哦",
+					"吖,"+nickname+"的脸不是拿来捏的！",
+					"啊!~"+nickname+"要生气了哦",
 					"?",
 					"请不要捏"+nickname+" >_<",
 				))

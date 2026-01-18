@@ -2,8 +2,8 @@
 package ygo
 
 import (
+	"errors"
 	"image/color"
-	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -28,6 +28,14 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
+const (
+	edgeThreshold   = 225               // 15^2 = 225
+	gameDuration    = 120 * time.Second // 单局游戏时长
+	warningDuration = 105 * time.Second // 警告时间
+	cooldownPeriod  = 30 * time.Minute  // 冷却时间
+	maxGameDuration = 1 * time.Hour     // 游戏最大持续时间
+)
+
 // GameInfo 游戏信息
 type GameInfo struct {
 	MID         any
@@ -43,12 +51,23 @@ type GameInfo struct {
 }
 
 type GameLimit struct {
-	Limit    int
-	LastTime time.Time // 距离上次回答时间
+	Limit       int
+	LastTime    time.Time
+	GameStart   time.Time
+	CooldownEnd time.Time
 }
 
+// type SafeGameRoom struct {
+// 	mu    sync.RWMutex
+// 	games map[int64]*GameInfo
+// 	limit map[int64]*GameLimit
+// }
+
 var (
-	nameList  = []string{"CN卡名", "NW卡名", "MD卡名", "简中卡名", "日文注音", "日文名", "英文名"}
+	nameList   = []string{"CN卡名", "NW卡名", "MD卡名", "简中卡名", "日文注音", "日文名", "英文名"}
+	processors = []func(*imgfactory.Factory) ([]byte, error){
+		backPic, mosaic, doublePicture, cutPic, randSet,
+	}
 	gameRoom  sync.Map
 	gameCheck sync.Map
 	ygoguess  = control.AutoRegister(&ctrl.Options[*zero.Ctx]{
@@ -83,14 +102,16 @@ func init() {
 			return true
 		})
 		process.GlobalInitMutex.Unlock()
-		for {
-			time.Sleep(time.Second)
+
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
 			gameRoom.Range(func(key, value any) bool {
 				gid := key.(int64)
 				info := value.(GameInfo)
-				sin := time.Since(info.LastTime).Seconds()
+				sin := time.Since(info.LastTime)
 				switch {
-				case sin > 120:
+				case sin > gameDuration:
 					gameRoom.Delete(gid)
 					_ = wallet.InsertWalletOf(info.UID, -5)
 					picPath := cachePath + strconv.Itoa(info.CID) + ".jpg"
@@ -115,11 +136,15 @@ func init() {
 	ygoguess.OnFullMatch("猜卡游戏", zero.OnlyGroup).SetBlock(true).Limit(ctxext.LimitByGroup).Handle(func(ctx *zero.Ctx) {
 		gid := ctx.Event.GroupID
 		ctxMid := ctx.Event.MessageID
-		elapsed := checkLimit(gid)
+		elapsed, err := checkLimit(gid)
+		if err != nil {
+			ctx.SendChain(message.Text(err))
+			return
+		}
 		info, ok := gameRoom.Load(gid)
 		if ok {
 			gameInfo := info.(GameInfo)
-			if time.Since(gameInfo.LastTime).Seconds() < 105 {
+			if time.Since(gameInfo.LastTime) < warningDuration {
 				ctx.SendChain(message.Text("已经有正在进行的游戏(第", elapsed, "题):"))
 				mid := ctx.SendChain(message.ImageBytes(gameInfo.Pic))
 				if mid.ID() != 0 {
@@ -290,7 +315,7 @@ func init() {
 			ctx.SendChain(message.Text("[ERROR]", err))
 			return
 		}
-		gameInfo.Worry = zbmath.Max(gameInfo.Worry, 6)
+		gameInfo.Worry = max(gameInfo.Worry, 6)
 		msgID := ctx.Send(message.ReplyWithMessage(ctx.Event.MessageID,
 			message.Text("游戏已取消\n卡名是:\n", gameInfo.Name[0], "\n"),
 			message.ImageBytes(pic)))
@@ -302,9 +327,6 @@ func init() {
 
 // 随机选择
 func randPicture(picFile, cardType string) ([]byte, error) {
-	types := []func(*imgfactory.Factory) ([]byte, error){
-		backPic, mosaic, doublePicture, cutPic, randSet,
-	}
 	pic, err := gg.LoadImage(picFile)
 	if err != nil {
 		return nil, err
@@ -316,10 +338,29 @@ func randPicture(picFile, cardType string) ([]byte, error) {
 		dst = dst.Clip(351-51, 408-108, 51, 108)
 	}
 	dst = imgfactory.Size(dst.Image(), 256*5, 256*5)
-	id := rand.Intn(len(types))
-	dstfunc := types[id]
-	picbytes, err := dstfunc(dst)
-	return picbytes, err
+	processor := processors[rand.Intn(len(processors))]
+	return processor(dst)
+}
+
+// 提取为独立的边缘检测函数
+func isEdgePixel(colorA, colorB, colorC color.NRGBA) bool {
+	// 计算与右边像素的色差
+	diffRight := colorDiffSquared(colorA, colorB)
+	if diffRight > edgeThreshold {
+		return true
+	}
+
+	// 计算与下边像素的色差
+	diffDown := colorDiffSquared(colorA, colorC)
+	return diffDown > edgeThreshold
+}
+
+// 优化色差计算（避免平方根）
+func colorDiffSquared(c1, c2 color.NRGBA) int {
+	dr := int(c1.R) - int(c2.R)
+	dg := int(c1.G) - int(c2.G)
+	db := int(c1.B) - int(c2.B)
+	return dr*dr + dg*dg + db*db
 }
 
 // 获取黑边
@@ -327,17 +368,20 @@ func backPic(dst *imgfactory.Factory) ([]byte, error) {
 	bounds := dst.Image().Bounds()
 	returnpic := imgfactory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255}).Image()
 
-	for y := bounds.Min.Y; y <= bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x <= bounds.Max.X; x++ {
+	// 避免边界检查
+	maxX := bounds.Max.X - 1
+	maxY := bounds.Max.Y - 1
+
+	for y := bounds.Min.Y; y < maxY; y++ {
+		for x := bounds.Min.X; x < maxX; x++ {
 			a := dst.Image().At(x, y)
 			colorA := color.NRGBAModel.Convert(a).(color.NRGBA)
 			b := dst.Image().At(x+1, y)
 			colorB := color.NRGBAModel.Convert(b).(color.NRGBA)
 			c := dst.Image().At(x, y+1)
 			colorC := color.NRGBAModel.Convert(c).(color.NRGBA)
-			if math.Sqrt(float64((colorA.R-colorB.R)*(colorA.R-colorB.R)+(colorA.G-colorB.G)*(colorA.G-colorB.G)+(colorA.B-colorB.B)*(colorA.B-colorB.B))) > 15 {
-				returnpic.Set(x, y, color.NRGBA{0, 0, 0, 0})
-			} else if math.Sqrt(float64((colorA.R-colorC.R)*(colorA.R-colorC.R)+(colorA.G-colorC.G)*(colorA.G-colorC.G)+(colorA.B-colorC.B)*(colorA.B-colorC.B))) > 15 {
+
+			if isEdgePixel(colorA, colorB, colorC) {
 				returnpic.Set(x, y, color.NRGBA{0, 0, 0, 0})
 			}
 		}
@@ -390,22 +434,48 @@ func doublePicture(dst *imgfactory.Factory) ([]byte, error) {
 // 马赛克
 func mosaic(dst *imgfactory.Factory) ([]byte, error) {
 	b := dst.Image().Bounds()
-	markSize := (b.Max.X * (5 - rand.Intn(4))) / 100
+	w, h := b.Dx(), b.Dy()
 
-	for yOfMarknum := 0; yOfMarknum <= zbmath.Ceil(b.Max.Y, markSize); yOfMarknum++ {
-		for xOfMarknum := 0; xOfMarknum <= zbmath.Ceil(b.Max.X, markSize); xOfMarknum++ {
-			a := dst.Image().At(xOfMarknum*markSize+markSize/2, yOfMarknum*markSize+markSize/2)
-			cc := color.NRGBAModel.Convert(a).(color.NRGBA)
-			for y := 0; y < markSize; y++ {
-				for x := 0; x < markSize; x++ {
-					xOfPic := xOfMarknum*markSize + x
-					yOfPic := yOfMarknum*markSize + y
-					dst.Image().Set(xOfPic, yOfPic, cc)
-				}
+	// 根据图片大小动态调整马赛克块大小
+	blockSize := max(w, h) / 30
+	blockSize = max(blockSize, 4) // 最小4像素
+
+	// 预计算马赛克块
+	xBlocks := (w + blockSize - 1) / blockSize
+	yBlocks := (h + blockSize - 1) / blockSize
+
+	// 使用缓存颜色提高性能
+	colors := make([][]color.NRGBA, xBlocks)
+	for i := range colors {
+		colors[i] = make([]color.NRGBA, yBlocks)
+	}
+
+	// 采样每个块的中心颜色
+	for x := 0; x < xBlocks; x++ {
+		for y := 0; y < yBlocks; y++ {
+			cx := x*blockSize + blockSize/2
+			cy := y*blockSize + blockSize/2
+			if cx >= w {
+				cx = w - 1
 			}
+			if cy >= h {
+				cy = h - 1
+			}
+			colors[x][y] = color.NRGBAModel.Convert(
+				dst.Image().At(cx, cy)).(color.NRGBA)
 		}
 	}
-	return imgfactory.ToBytes(dst.Blur(3).Image())
+
+	// 应用马赛克
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			bx := x / blockSize
+			by := y / blockSize
+			dst.Image().Set(x, y, colors[bx][by])
+		}
+	}
+
+	return imgfactory.ToBytes(dst.Blur(2).Image())
 }
 
 // 随机切割
@@ -447,33 +517,49 @@ func cutPic(dst *imgfactory.Factory) ([]byte, error) {
 // 乱序
 func randSet(dst *imgfactory.Factory) ([]byte, error) {
 	b := dst.Image().Bounds()
-	w, h := b.Max.X/3, b.Max.Y/3
-	returnpic := imgfactory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255})
+	w, h := b.Max.X, b.Max.Y
+	blockW, blockH := w/3, h/3
 
-	mapPicOfX := []int{0, 0, 0, 1, 1, 1, 2, 2, 2}
-	mapPicOfY := []int{0, 1, 2, 0, 1, 2, 0, 1, 2}
+	// 创建输出图像
+	returnpic := imgfactory.NewFactoryBG(w, h, color.NRGBA{255, 255, 255, 255})
 
-	for i := 0; i < 3; i++ {
-		for j := 0; j < 3; j++ {
-			index := 0
-			mapfaceX := mapPicOfX[index]
-			mapfaceY := mapPicOfY[index]
-			if len(mapPicOfX) > 1 {
-				index = rand.Intn(len(mapPicOfX))
-				mapfaceX = mapPicOfX[index]
-				mapfaceY = mapPicOfY[index]
-				mapPicOfX = append(mapPicOfX[:index], mapPicOfX[index+1:]...)
-				mapPicOfY = append(mapPicOfY[:index], mapPicOfY[index+1:]...)
+	// 生成9个块的随机排列
+	indices := rand.Perm(9)
+	// 预计算步长
+	srcStride := dst.Image().Stride
+	dstStride := returnpic.Image().Stride
+
+	// 逐块复制像素
+	for i := range 9 {
+		srcIdx := indices[i]
+
+		// 计算源块和目标块的坐标
+		srcBlockX := (srcIdx % 3) * blockW
+		srcBlockY := (srcIdx / 3) * blockH
+		dstBlockX := (i % 3) * blockW
+		dstBlockY := (i / 3) * blockH
+
+		// 复制整个块
+		for y := range blockH {
+			srcY := srcBlockY + y
+			dstY := dstBlockY + y
+
+			if srcY >= h || dstY >= h {
+				break
 			}
-			for x := 0; x < w; x++ {
-				for y := 0; y < h; y++ {
-					a := dst.Image().At(mapfaceX*w+x, mapfaceY*h+y)
-					cc := color.NRGBAModel.Convert(a).(color.NRGBA)
-					returnpic.Image().Set(i*w+x, j*h+y, cc)
-				}
-			}
+
+			// 计算行起始位置
+			srcStart := srcY*srcStride + srcBlockX*4
+			dstStart := dstY*dstStride + dstBlockX*4
+
+			// 整行复制（使用 copy 函数）
+			copy(
+				returnpic.Image().Pix[dstStart:dstStart+blockW*4],
+				dst.Image().Pix[srcStart:srcStart+blockW*4],
+			)
 		}
 	}
+
 	return imgfactory.ToBytes(returnpic.Image())
 }
 
@@ -506,8 +592,7 @@ func getTips(cardData cardInfo, quitCount int) string {
 			for _, value := range depict {
 				value = strings.TrimSpace(value)
 				if value != "" {
-					list := strings.Split(value, "，")
-					for _, value2 := range list {
+					for value2 := range strings.SplitSeq(value, "，") {
 						if value2 != "" {
 							textrand = append(textrand, value2)
 						}
@@ -520,27 +605,63 @@ func getTips(cardData cardInfo, quitCount int) string {
 }
 
 func matchCard(cardName, text string) int {
-	an := strings.ToLower(removePunctuation(text))
-	if an == "" {
+	an := removePunctuationAndLower(text)
+	cn := removePunctuationAndLower(cardName)
+
+	if an == "" || cn == "" {
 		return 0
 	}
-	cn := strings.ToLower(removePunctuation(cardName))
-	lenght := len([]rune(cn))
+
+	// 优先检查完全匹配或包含关系
+	if an == cn {
+		return 100
+	}
+
 	if strings.Contains(cn, an) {
-		return len([]rune(an)) * 100 / lenght
+		return len([]rune(an)) * 100 / len([]rune(cn))
+	}
+
+	// 使用更高效的字符串相似度算法
+	similarity := calculateSimilarity(cn, an)
+
+	// 设置相似度阈值（75%）
+	if similarity >= 75 {
+		return similarity
+	}
+
+	return 0
+}
+
+// 实现Levenshtein距离算法
+func calculateSimilarity(s1, s2 string) int {
+	r1, r2 := []rune(s1), []rune(s2)
+	n, m := len(r1), len(r2)
+
+	if n == 0 || m == 0 {
+		return 0
+	}
+
+	// 优化：如果长度差太大，直接返回0
+	if zbmath.Abs(n-m) > max(n, m)/2 {
+		return 0
 	}
 	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(cardName, text, false)
+	diffs := dmp.DiffMain(s1, s2, false)
 	matched := 0
 	for _, diff := range diffs {
 		if diff.Type == diffmatchpatch.DiffEqual {
 			matched += len([]rune(diff.Text))
 		}
 	}
+	lenght := max(n, m)
 	if matched >= lenght*3/4 {
 		return matched * 100 / lenght
 	}
 	return 0
+}
+
+func removePunctuationAndLower(s string) string {
+	return strings.ToLower(removePunctuation(s))
 }
 
 func removePunctuation(text string) string {
@@ -553,23 +674,53 @@ func removePunctuation(text string) string {
 	}, text)
 }
 
-func checkLimit(gid int64) int {
+// 修改 checkLimit 函数
+func checkLimit(gid int64) (int, error) {
 	info, ok := gameCheck.Load(gid)
 	if !ok {
 		gameLimit := GameLimit{
-			Limit:    1,
-			LastTime: time.Now(),
+			Limit:     1,
+			LastTime:  time.Now(),
+			GameStart: time.Now(),
 		}
 		gameCheck.Store(gid, gameLimit)
-		return 1
+		return 1, nil
 	}
+
 	gameLimit := info.(GameLimit)
-	today := time.Now().Weekday()
-	gameLimit.Limit++
-	if today != gameLimit.LastTime.Weekday() {
-		gameLimit.Limit = 1
+
+	// 清除冷却状态
+	if !gameLimit.CooldownEnd.IsZero() && time.Now().After(gameLimit.CooldownEnd) {
+		gameLimit.CooldownEnd = time.Time{}
+		gameLimit.GameStart = time.Now()
 	}
-	gameLimit.LastTime = time.Now()
+
+	// 检查冷却状态
+	if !gameLimit.CooldownEnd.IsZero() && time.Now().Before(gameLimit.CooldownEnd) {
+		return gameLimit.Limit, errors.New("冷却时间中，剩余" +
+			time.Until(gameLimit.CooldownEnd).Round(time.Second).String())
+	}
+
+	// 检查是否达到1小时限制
+	if !gameLimit.GameStart.IsZero() && time.Since(gameLimit.GameStart) >= maxGameDuration {
+		gameCheck.Store(gid, GameLimit{
+			LastTime:    time.Now(),
+			CooldownEnd: time.Now().Add(cooldownPeriod),
+		})
+		return gameLimit.Limit, errors.New("游戏时间已达1小时，进入半小时冷却")
+	}
+
+	// 检查是否是新的一天
+	now := time.Now()
+	if now.Day() != gameLimit.LastTime.Day() {
+		gameLimit.Limit = 1
+		gameLimit.GameStart = now
+	} else {
+		gameLimit.Limit++
+	}
+
+	gameLimit.LastTime = now
 	gameCheck.Store(gid, gameLimit)
-	return gameLimit.Limit
+
+	return gameLimit.Limit, nil
 }

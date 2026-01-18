@@ -31,7 +31,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	// 数据库
-
+	"github.com/FloatTech/AnimeAPI/pixiv"
 	"github.com/FloatTech/AnimeAPI/wallet"
 	sql "github.com/FloatTech/sqlite"
 
@@ -60,7 +60,7 @@ type userdata struct {
 	Picname    string // `签到图片`
 }
 
-const cost = 20 // 获取签到背景所需点数
+const cost = 100 // 获取签到背景所需点数
 
 var (
 	levelrank = [...]string{
@@ -97,6 +97,19 @@ var (
 	mu             sync.RWMutex
 	dbpath         = engine.DataFolder() + "score.db"
 	scoredata      = &score{db: sql.New(dbpath)}
+	getdb          = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
+		err := scoredata.db.Open(time.Hour * 24)
+		if err != nil {
+			ctx.SendChain(message.Text("[init ERROR]:", err))
+			return false
+		}
+		err = scoredata.db.Create("score", &userdata{})
+		if err != nil {
+			ctx.SendChain(message.Text("[ERROR]:", err))
+			return false
+		}
+		return true
+	})
 )
 
 func init() {
@@ -110,29 +123,30 @@ func init() {
 			panic(err)
 		}
 	}()
-	getdb := fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
-		err := scoredata.db.Open(time.Hour * 24)
-		if err != nil {
-			ctx.SendChain(message.Text("[init ERROR]:", err))
-			return false
-		}
-		err = scoredata.db.Create("score", &userdata{})
-		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]:", err))
-			return false
-		}
-		return true
-	})
-
 	engine.OnFullMatch("/hso").SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		imgurl, err := getimgurl("https://api.lolicon.app/setu/v2?tag=" + url.QueryEscape("游戏王|yu-gi-oh|遊戯王"))
+		pid, imgurl, err := getimgurl("https://api.lolicon.app/setu/v2?tag=" + url.QueryEscape("游戏王|yu-gi-oh|遊戯王"))
 		if err != nil {
-			fmt.Println(err)
+			logrus.Warningln(err)
+			return
+		}
+		// 查询P站插图信息
+		illust, err := pixiv.Works(pid)
+		if err != nil {
+			logrus.Warningln("[score] 初始化签到图片失败:", err)
+			return
+		}
+		if len(illust.ImageUrls) == 0 {
+			logrus.Warningln("[score] 初始化签到图片失败:nil image url")
+			return
+		}
+		err = illust.Download(0, cachePath)
+		if err != nil {
+			logrus.Warningln("[score] 初始化签到图片失败:", err)
 			return
 		}
 		imgPath, err := DownloadTo(imgurl, file.BOTPATH+"/"+cachePath)
 		if err != nil {
-			fmt.Println(err)
+			logrus.Warningln(err)
 			return
 		}
 		// ctx.SendChain(message.Image("file://" + imgPath))
@@ -200,14 +214,14 @@ func init() {
 				"\n等级: ", nowLevel, "(", userinfo.Level, "/", nextLevelScore, ")",
 				"\n当前总", wallet.GetWalletName(), ": ", score,
 				text,
-				"\n\n花费20", wallet.GetWalletName(), "发送“获取签到背景”查看高清签到背景",
+				"\n\n花费", cost, wallet.GetWalletName(), "发送“获取签到背景”查看高清签到背景",
 			))
 			return
 		}
 		go func() {
 			_, err := initPic(0)
 			if err != nil {
-				logrus.Debugln("[score] 初始化签到图片失败:", err)
+				logrus.Warningln("[score] 初始化签到图片失败:", err)
 				return
 			}
 		}()
@@ -399,7 +413,7 @@ func DownloadTo(url, path string) (imagePath string, err error) {
 	var resp *http.Response
 	resp, err = trshttp.Get(url)
 	if err != nil {
-		fmt.Println("trshttp:", err)
+		logrus.Warningln("trshttp:", err)
 		resp, err = http.Get(url)
 	}
 	if err != nil {
@@ -492,8 +506,8 @@ func getFilename(url string, header http.Header) string {
 	// 尝试从Content-Disposition头获取文件名
 	contentDisposition := header.Get("Content-Disposition")
 	if contentDisposition != "" {
-		if idx := strings.Index(contentDisposition, "filename="); idx != -1 {
-			filename := contentDisposition[idx+len("filename="):]
+		if _, after, ok := strings.Cut(contentDisposition, "filename="); ok {
+			filename := after
 			filename = strings.Trim(filename, `"`)
 			return filename
 		}
@@ -506,50 +520,70 @@ func getFilename(url string, header http.Header) string {
 
 func initPic(idex int) (picFile string, err error) {
 	if idex > 3 {
-		fmt.Println("[score] lolicon下载图片失败,将从moehu下载图片:", err)
-		return moehu(0)
+		logrus.Warningln("[score] lolicon下载图片失败,将从moehu下载图片:", err)
+		picFile, err = moehu(0)
+		return picFile, err
 	}
-	imgurl, err := getimgurl("https://api.lolicon.app/setu/v2?tag=" + url.QueryEscape("游戏王|yu-gi-oh|遊戯王"))
+	pid, imgurl, err := getimgurl("https://api.lolicon.app/setu/v2?tag=" + url.QueryEscape("游戏王|yu-gi-oh|遊戯王"))
 	if err != nil {
-		fmt.Println(err)
+		logrus.Warningln(err)
 		return initPic(idex + 1)
 	}
-	fmt.Println("[score] lolicon解析地址:", imgurl)
+	logrus.Warningln("[score] lolicon解析地址:", imgurl)
+
+	// 查询P站插图信息
+	illust, err := pixiv.Works(pid)
+	if err == nil {
+		go func() {
+			if len(illust.ImageUrls) == 0 {
+				logrus.Warningln("[score] illust下载失败:nil image url")
+				return
+			}
+			err = illust.Download(0, cachePath)
+			if err != nil {
+				logrus.Warningln("[score] illust下载失败:", err)
+				return
+			}
+		}()
+	} else {
+		logrus.Warningln("[score] illust初始化失败:", err)
+	}
 	picFile, err = DownloadTo(imgurl, cachePath)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Warningln(err)
 		return initPic(idex + 1)
 	}
-	fmt.Println("[score] lolicon下载成功:", picFile)
+	logrus.Warningln("[score] lolicon下载成功:", picFile)
 	return
 
 }
 
-func getimgurl(url string) (string, error) {
+func getimgurl(url string) (int64, string, error) {
 	data, err := web.GetData(url)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	json := gjson.ParseBytes(data)
 	if e := json.Get("error").Str; e != "" {
-		return "", errors.New(e)
+		return 0, "", errors.New(e)
 	}
 	var imageurl string
 	if imageurl = json.Get("data.0.urls.original").Str; imageurl == "" {
-		return "", errors.New("未找到相关内容, 换个tag试试吧")
+		return 0, "", errors.New("未找到相关内容, 换个tag试试吧")
 	}
-	return imageurl, nil
+	pid := json.Get("data.0.pid").Int()
+	return pid, imageurl, nil
 }
 
 // 下载图片
 func moehu(idex int) (picFile string, err error) {
 	if idex > 3 {
-		fmt.Println("[score] moehu下载图片失败,将从alcy下载图片:", err)
+		logrus.Warningln("[score] moehu下载图片失败,将从alcy下载图片:", err)
 		return otherPic(0)
 	}
 	picFile, err = DownloadTo("https://img.moehu.org/pic.php", cacheOtherPath)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Warningln(err)
 		return moehu(idex + 1)
 	}
 	return
@@ -558,18 +592,18 @@ func moehu(idex int) (picFile string, err error) {
 // 下载图片
 func otherPic(idex int) (picFile string, err error) {
 	if idex > 3 {
-		fmt.Println("[score] alcy下载图片失败,将从本地抽选:", err)
+		logrus.Warningln("[score] alcy下载图片失败,将从本地抽选:", err)
 		return randFile(cachePath, 3)
 	}
 	resp, err := web.HeadRequestURL("https://t.alcy.cc/ycy/")
 	if err != nil {
-		fmt.Println(err)
+		logrus.Warningln(err)
 		return otherPic(idex + 1)
 	}
-	fmt.Println("[score] 新链接:", resp)
+	logrus.Warningln("[score] 新链接:", resp)
 	picFile, err = DownloadTo(resp, cacheOtherPath)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Warningln(err)
 		return otherPic(idex + 1)
 	}
 	return
@@ -787,7 +821,7 @@ func drawImage(userinfo *userdata, score, add int) (data []byte, err error) {
 	if ok {
 		canvas.DrawStringAnchored("PID:"+picName, 200, float64(backDY)-10-textH, 0.5, 0.5)
 	}
-	canvas.DrawStringAnchored("花费20"+wallet.GetWalletName()+"发送“获取签到背景”获取高清图片", float64(backDX)/2-340, float64(backDY)-10-textH, 0, 0.5)
+	canvas.DrawStringAnchored("花费"+strconv.Itoa(cost)+wallet.GetWalletName()+"发送“获取签到背景”获取高清图片", float64(backDX)/2-340, float64(backDY)-10-textH, 0, 0.5)
 	// 生成图片
 	return imgfactory.ToBytes(canvas.Image())
 }
