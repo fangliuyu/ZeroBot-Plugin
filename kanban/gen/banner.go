@@ -30,11 +30,17 @@ var Banner = "* OneBot + ZeroBot + Golang\n" +
 const timeformat = `2006-01-02 15:04:05 +0800 CST`
 
 func main() {
+	// 确保 banner 目录存在
+	if err := os.MkdirAll("banner", 0755); err != nil {
+		panic(fmt.Sprintf("创建目录失败: %v", err))
+	}
+
 	f, err := os.Create("banner/banner.go")
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+
 	vartag := bytes.NewBuffer(nil)
 	vartagcmd := exec.Command("git", "tag", "--sort=committerdate")
 	vartagcmd.Stdout = vartag
@@ -42,10 +48,26 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	s := strings.Split(vartag.String(), "\n")
+	version := "v0.0.0"
+	tags := strings.TrimSpace(vartag.String())
+	if tags != "" {
+		tagList := strings.Split(tags, "\n")
+		if len(tagList) > 0 {
+			// 获取最新的 tag（最后一个）
+			version = tagList[len(tagList)-2]
+		}
+	} else {
+		panic("获取 git tag 失败")
+	}
 	now := time.Now()
-	_, err = fmt.Fprintf(f, banner, s[len(s)-2], now.Year(), now.Format(timeformat))
+	_, err = fmt.Fprintf(f, banner, version, now.Year(), now.Format(timeformat))
 	if err != nil {
 		panic(err)
 	}
+	// 确保文件内容被刷新
+	if err := f.Sync(); err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 同步文件失败: %v\n", err)
+	}
+
+	fmt.Printf("成功生成 banner/banner.go，版本: %s\n", version)
 }
