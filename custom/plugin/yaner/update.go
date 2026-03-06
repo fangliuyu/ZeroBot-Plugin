@@ -198,7 +198,7 @@ func fileZipTo(src_dir string, zip_file_name string) error {
 	defer archive.Close()
 
 	// 遍历路径信息
-	filepath.Walk(src_dir, func(path string, info os.FileInfo, _ error) error {
+	err = filepath.Walk(src_dir, func(path string, info os.FileInfo, _ error) error {
 
 		// 如果是源路径，提前进行下一个遍历
 		if path == src_dir {
@@ -231,9 +231,12 @@ func fileZipTo(src_dir string, zip_file_name string) error {
 				return err
 			}
 			defer file.Close()
-			io.Copy(writer, file)
+			_, err = io.Copy(writer, file)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
-	return nil
+	return err
 }

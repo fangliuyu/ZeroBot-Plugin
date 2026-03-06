@@ -21,22 +21,25 @@ import (
 
 // ----------------------- 远程调用 ----------------------
 const (
-	gameListUrl = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"   // 获取所有游戏列表
-	gameInfoUrl = "https://store.steampowered.com/api/appdetails?appids=%+v" // 游戏详情页
+	gameListURL = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"   // 获取所有游戏列表
+	gameInfoURL = "https://store.steampowered.com/api/appdetails?appids=%+v" // 游戏详情页
 	ua          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
 )
 
+// GameList 游戏列表接口返回的数据结构
 type GameList struct {
 	Applist struct {
 		Apps []App `json:"apps"`
 	} `json:"applist"`
 }
 
+// App 游戏列表中的每个游戏数据结构
 type App struct {
 	Appid int    `json:"appid"`
 	Name  string `json:"name"`
 }
 
+// AppInfo 游戏详情接口返回的数据结构
 type AppInfo struct {
 	Success bool `json:"success"`
 	Data    struct {
@@ -144,7 +147,7 @@ type AppInfo struct {
 		Background         string `json:"background"`
 		BackgroundRaw      string `json:"background_raw"`
 		ContentDescriptors struct {
-			Ids   []int  `json:"ids"`
+			IDs   []int  `json:"ids"`
 			Notes string `json:"notes"`
 		} `json:"content_descriptors"`
 		Ratings struct {
@@ -182,6 +185,7 @@ type AppInfo struct {
 	} `json:"data"`
 }
 
+// GameInfo 最终返回给用户的游戏信息数据结构
 type GameInfo struct {
 	Name                  string
 	Appid                 int
@@ -281,9 +285,9 @@ func init() {
 
 func fetchGameList() error {
 	var response *http.Response
-	response, err := trshttp.Get(gameListUrl)
+	response, err := trshttp.Get(gameListURL)
 	if err != nil {
-		response, err = http.Get(gameListUrl)
+		response, err = http.Get(gameListURL)
 	}
 	if err != nil {
 		return err
@@ -393,7 +397,7 @@ func getGameListData(data []App) (gameInfoList []GameInfo, err error) {
 
 func getGameWebData(appid int) (data GameInfo, err error) {
 	appidStr := strconv.Itoa(appid)
-	url := fmt.Sprintf(gameInfoUrl, appidStr)
+	url := fmt.Sprintf(gameInfoURL, appidStr)
 	apiResponse, err := web.RequestDataWithHeaders(web.NewDefaultClient(), url, "GET", func(r *http.Request) error {
 		r.Header.Add("Cookie", "steamCountry=CN;")
 		r.Header.Set("accept-language", "zh-CN,zh;q=0.9")

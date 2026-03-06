@@ -237,7 +237,7 @@ func getNewCatData(gid, uid string) (cat *catInfo, err error) {
 
 	cat.LastTime = now.Unix()
 
-	catdata.updateCatInfo(gid, cat)
+	err = catdata.updateCatInfo(gid, cat)
 	return
 }
 

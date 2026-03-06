@@ -12,7 +12,7 @@ require (
 	github.com/FloatTech/sqlite v1.7.2
 	github.com/FloatTech/ttl v0.0.0-20250224045156-012b1463287d
 	github.com/FloatTech/zbpctrl v1.7.1
-	github.com/FloatTech/zbputils v1.7.2-0.20260117132036-29f021ceb949
+	github.com/FloatTech/zbputils v1.7.2-0.20260219154206-c4c0a7e0fb03
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/RomiChan/syncx v0.0.0-20240418144900-b7402ffdebc7
 	github.com/RomiChan/websocket v1.4.3-0.20251002072000-d3eb41798438
@@ -25,7 +25,7 @@ require (
 	github.com/fumiama/cron v1.3.0
 	github.com/fumiama/deepinfra v0.0.0-20251221163610-e98ee3ba437a
 	github.com/fumiama/go-base16384 v1.7.1
-	github.com/fumiama/go-onebot-agent v0.0.0-20260117094018-cd93ccfd6e04
+	github.com/fumiama/go-onebot-agent v0.0.0-20260128132028-05e6b4809f0a
 	github.com/fumiama/go-registry v0.2.7
 	github.com/fumiama/gotracemoe v0.0.3
 	github.com/fumiama/jieba v0.0.0-20221203025406-36c17a10b565
@@ -34,6 +34,7 @@ require (
 	github.com/fumiama/unibase2n v0.0.0-20240530074540-ec743fd5a6d6
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
+	github.com/guohuiyuan/music-lib v1.0.2-0.20260121020416-53f6cb24629d
 	github.com/jinzhu/gorm v1.9.16
 	github.com/jozsefsallai/gophersauce v1.0.1
 	github.com/kanrichan/resvg-go v0.0.2-0.20231001163256-63db194ca9f5
