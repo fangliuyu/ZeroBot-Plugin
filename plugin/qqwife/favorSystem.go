@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/FloatTech/floatbox/math"
 	"github.com/FloatTech/imgfactory"
@@ -332,6 +333,24 @@ func (sql *婚姻登记) 更新好感度(uid, target int64, score int) (favor in
 		return
 	}
 	info := favorability{}
+	err = sql.db.Find("favorability", &info, "WHERE Userinfo = ?", "-1")
+	if err == nil {
+		if info.Favor != 0 && time.Now().Year() != info.Favor {
+			err = sql.db.Drop("favorability")
+			if err == nil {
+				err = sql.db.Create("favorability", &favorability{})
+				if err != nil {
+					return
+				}
+				info = favorability{
+					Userinfo: "-1",
+					Favor:    time.Now().Year(),
+				}
+				err = sql.db.Insert("favorability", &info)
+			}
+		}
+	}
+
 	uidstr := strconv.FormatInt(uid, 10)
 	targstr := strconv.FormatInt(target, 10)
 	if uid > target {

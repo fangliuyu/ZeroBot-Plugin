@@ -3,6 +3,7 @@ package score
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -31,7 +32,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	// 数据库
-	"github.com/FloatTech/AnimeAPI/pixiv"
+
 	"github.com/FloatTech/AnimeAPI/wallet"
 	sql "github.com/FloatTech/sqlite"
 
@@ -93,6 +94,7 @@ var (
 		Help:              "- 签到\n- 获得签到背景",
 	}).ApplySingle(ctxext.DefaultSingle)
 	cachePath      = engine.DataFolder() + "ygo/"
+	cache18Path    = engine.DataFolder() + "ygo18/"
 	cacheOtherPath = engine.DataFolder() + "cache/"
 	mu             sync.RWMutex
 	dbpath         = engine.DataFolder() + "score.db"
@@ -124,27 +126,7 @@ func init() {
 		}
 	}()
 	engine.OnFullMatch("/hso").SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		pid, imgurl, err := getimgurl("https://api.lolicon.app/setu/v2?tag=" + url.QueryEscape("游戏王|yu-gi-oh|遊戯王"))
-		if err != nil {
-			logrus.Warningln(err)
-			return
-		}
-		// 查询P站插图信息
-		illust, err := pixiv.Works(pid)
-		if err != nil {
-			logrus.Warningln("[score] 初始化签到图片失败:", err)
-			return
-		}
-		if len(illust.ImageUrls) == 0 {
-			logrus.Warningln("[score] 初始化签到图片失败:nil image url")
-			return
-		}
-		err = illust.Download(0, cachePath)
-		if err != nil {
-			logrus.Warningln("[score] 初始化签到图片失败:", err)
-			return
-		}
-		imgPath, err := DownloadTo(imgurl, file.BOTPATH+"/"+cachePath)
+		imgPath, err := initPic(0)
 		if err != nil {
 			logrus.Warningln(err)
 			return
@@ -401,6 +383,158 @@ func (sdb *score) setData(userinfo userdata) error {
 }
 
 // DownloadTo 下载到路径
+func DownloadLoliconTo(pid, url, path string) (imagePath string, err error) {
+	// 解析URL和图片类型
+	url, index, ok := strings.Cut(url, pid)
+	if !ok {
+		err = errors.New("url解析失败")
+		return
+	}
+
+	picType := "png"
+	if _, urlType, ok := strings.Cut(index, "."); ok {
+		picType = urlType
+	}
+
+	// 配置参数
+	const (
+		maxConcurrent = 10 // 最大并发数
+		maxRetries    = 3  // 最大重试次数
+		timeout       = 30 // 超时时间（秒）
+		totalImages   = 99 // 总图片数量
+	)
+
+	// 使用带缓冲的channel作为信号量控制并发
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	mu := &sync.Mutex{}
+	fileList := make([]string, 0, totalImages)
+
+	// 错误收集（可选）
+	errCh := make(chan error, totalImages*maxRetries)
+	// 创建带超时的context
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	for i := range totalImages {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			// 获取信号量（控制并发）
+			select {
+			case sem <- struct{}{}:
+				// 成功获取
+				defer func() { <-sem }() // 释放信号量
+			case <-ctx.Done():
+				// 超时或取消
+				errCh <- fmt.Errorf("图片%d: 等待并发许可超时", i)
+				return
+			}
+
+			// 带重试机制的下载
+			var pic string
+			var downloadErr error
+
+			for retry := 0; retry <= maxRetries; retry++ {
+				select {
+				case <-ctx.Done():
+					errCh <- fmt.Errorf("图片%d: 下载超时", i)
+					return
+				default:
+					// 继续执行
+				}
+
+				// 构建URL
+				pidURL := url + pid + "_p" + strconv.Itoa(i) + "." + picType
+				if strings.Contains(index, strconv.Itoa(i)) {
+					// 相同的图片不下载
+					break
+				}
+
+				// 尝试下载
+				pic, downloadErr = DownloadToWithContext(ctx, pidURL, path)
+				if downloadErr == nil {
+					// 下载成功
+					break
+				}
+
+				// 下载失败，如果不是最后一次重试，等待一下再重试
+				if retry < maxRetries {
+					// 指数退避等待
+					waitTime := time.Duration(math.Pow(2, float64(retry))) * time.Second
+					select {
+					case <-time.After(waitTime):
+						// 等待后继续重试
+					case <-ctx.Done():
+						errCh <- fmt.Errorf("图片%d: 重试等待超时", i)
+						return
+					}
+				}
+			}
+
+			// 检查下载结果
+			if downloadErr != nil {
+				errCh <- fmt.Errorf("图片%d: 下载失败，最后错误: %v", i, downloadErr)
+				return
+			}
+
+			// 下载成功，添加到列表
+			mu.Lock()
+			fileList = append(fileList, pic)
+			mu.Unlock()
+
+		}(i)
+	}
+
+	// 等待所有goroutine完成
+	wg.Wait()
+
+	// 关闭错误channel
+	close(errCh)
+
+	// 收集所有错误（可选，用于调试）
+	if false { // 设置为true可以查看详细错误信息
+		for err := range errCh {
+			logrus.Printf("下载错误: %v", err)
+		}
+	}
+
+	if len(fileList) == 0 {
+		err = errors.New("所有图片下载失败")
+		return
+	}
+
+	// 随机选择一个成功的图片
+	imagePath = fileList[rand.Intn(len(fileList))]
+	return
+}
+
+// DownloadTo的context包装器
+func DownloadToWithContext(ctx context.Context, url, path string) (string, error) {
+	// 使用channel来支持超时
+	resultCh := make(chan struct {
+		path string
+		err  error
+	}, 1)
+
+	go func() {
+		path, err := DownloadTo(url, path)
+		resultCh <- struct {
+			path string
+			err  error
+		}{path, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case result := <-resultCh:
+		return result.path, result.err
+	}
+}
+
+// DownloadTo 下载到路径
 func DownloadTo(url, path string) (imagePath string, err error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -531,23 +665,13 @@ func initPic(idex int) (picFile string, err error) {
 	}
 	logrus.Warningln("[score] lolicon解析地址:", imgurl)
 
-	// 查询P站插图信息
-	illust, err := pixiv.Works(pid)
-	if err == nil {
-		go func() {
-			if len(illust.ImageUrls) == 0 {
-				logrus.Warningln("[score] illust下载失败:nil image url")
-				return
-			}
-			err = illust.Download(0, cachePath)
-			if err != nil {
-				logrus.Warningln("[score] illust下载失败:", err)
-				return
-			}
-		}()
-	} else {
-		logrus.Warningln("[score] illust初始化失败:", err)
-	}
+	go func() {
+		_, err = DownloadLoliconTo(strconv.FormatInt(pid, 10), imgurl, cache18Path)
+		if err != nil {
+			logrus.Warningln(err)
+		}
+	}()
+
 	picFile, err = DownloadTo(imgurl, cachePath)
 	if err != nil {
 		logrus.Warningln(err)

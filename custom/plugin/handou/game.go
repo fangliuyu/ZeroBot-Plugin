@@ -9,7 +9,6 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -29,7 +28,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 )
 
-type idiomJson struct {
+type idiomJSON struct {
 	Word         string   `json:"word"`         // 成语
 	Chars        []string `json:"chars"`        // 成语
 	Pinyin       []string `json:"pinyin"`       // 拼音
@@ -51,14 +50,16 @@ const (
 	match = iota
 	exist
 	notexist
-	undone
+	blockmatch
+	blockexist
 )
 
 var colors = [...]color.RGBA{
+	{0, 153, 0, 255},
+	{255, 128, 0, 255},
+	{123, 123, 123, 255},
 	{125, 166, 108, 255},
 	{199, 183, 96, 255},
-	{123, 123, 123, 255},
-	{219, 219, 219, 255},
 }
 
 var (
@@ -88,34 +89,15 @@ var (
 				habitsIdiomKeys = append(habitsIdiomKeys, k)
 			}
 			// 构建用户习惯库（全局高频N-gram）
-			if file.IsNotExist(userHabitsFile) {
-				f, err := os.Create(userHabitsFile)
-				if err != nil {
-					ctx.SendChain(message.Text("ERROR: 创建用户习惯库时发生错误.\n", err))
-					return false
-				}
-				_ = f.Close()
-			} else {
-				habitsFile, err := os.ReadFile(userHabitsFile)
-				if err != nil {
-					ctx.SendChain(message.Text("ERROR: 读取字典时发生错误.\n", err))
-					return false
-				}
-				var config = make(map[string]int)
-				err = json.Unmarshal(habitsFile, &config)
-				if err != nil {
-					ctx.SendChain(message.Text("ERROR: 解析字典时发生错误.\n", err))
-					return false
-				}
-				err = initUserHabits()
-				if err != nil {
-					ctx.SendChain(message.Text("ERROR: 构建用户习惯库时发生错误.\n", err))
-					return false
-				}
+			err = initUserHabits()
+			if err != nil {
+				ctx.SendChain(message.Text("ERROR: 构建用户习惯库时发生错误.\n", err))
+				return false
 			}
+			// 下载字体
 			data, err := file.GetLazyData(text.BoldFontFile, control.Md5File, true)
 			if err != nil {
-				ctx.SendChain(message.Text("ERROR: 解析字典时发生错误.\n", err))
+				ctx.SendChain(message.Text("ERROR: 加载字体时发生错误.\n", err))
 				return false
 			}
 			pinyinFont = data
@@ -124,7 +106,7 @@ var (
 	)
 
 	pinyinFont      []byte
-	idiomInfoMap    = make(map[string]idiomJson)
+	idiomInfoMap    = make(map[string]idiomJSON)
 	habitsIdiomKeys = make([]string, 0)
 
 	errHadGuessed      = errors.New("had guessed")
@@ -229,11 +211,20 @@ func init() {
 						),
 					)
 				default:
-					ctx.Send(
-						message.ReplyWithMessage(c.Event.MessageID,
-							message.ImageBytes(img),
-						),
-					)
+					if img != nil {
+						ctx.Send(
+							message.ReplyWithMessage(c.Event.MessageID,
+								message.ImageBytes(img),
+							),
+						)
+					} else {
+						ctx.Send(
+							message.ReplyWithMessage(c.Event.MessageID,
+								message.Text("回答错误。"),
+							),
+						)
+
+					}
 				}
 			}
 		}
@@ -253,7 +244,7 @@ func poolIdiom() string {
 	return keys[rand.Intn(len(keys))]
 }
 
-func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
+func newHandouGame(target idiomJSON) func(string) (bool, []byte, error) {
 	var (
 		class  = len(target.Chars)
 		words  = target.Word
@@ -273,11 +264,12 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 		} else {
 			tickTruePinyin[i] = ""
 		}
+		tickExistChars[i] = "?"
 	}
 
 	return func(s string) (win bool, data []byte, err error) {
 		answer := []rune(s)
-		var answerData idiomJson
+		var answerData idiomJSON
 
 		if s != "" {
 			if words == s {
@@ -295,31 +287,32 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 
 			answerInfo, ok := idiomInfoMap[s]
 			if !ok {
-				answerInfo, err1 := geiAPIdata(s)
+				newIdiom, err1 := geiAPIdata(s)
 				if err1 != nil {
-					logrus.Warn("通过API获取成语信息时发生错误: ", err1)
+					logrus.Debugln("通过API获取成语信息时发生错误: ", err1)
 					err = errUnknownWord
 					return
 				}
-				logrus.Warn("通过API获取成语信息: ", answerInfo.Word)
-				if answerInfo.Word != "" {
-					idiomInfoMap[answerInfo.Word] = answerInfo
-					go func() { _ = saveIdiomJson() }()
+				logrus.Debugln("通过API获取成语信息: ", newIdiom.Word)
+				if newIdiom.Word != "" {
+					idiomInfoMap[newIdiom.Word] = *newIdiom
+					go func() { _ = saveIdiomJSON() }()
 				}
-				if answerInfo.Word != s {
+				if newIdiom.Word != s {
 					err = errUnknownWord
 					return
 				}
+				answerData = *newIdiom
+			} else {
+				answerData = answerInfo
 			}
-			answerData = answerInfo
-
-			// 处理汉字匹配逻辑
-			minCharsLen := min(len(chars), len(answerData.Chars))
-			for i := range minCharsLen {
-				if i >= len(tickExistChars) {
-					continue
-				}
-				if tickExistChars[i] == "" {
+			if len(record) >= 6 || win {
+				// 结束了显示答案
+				tickTruePinyin = target.Pinyin
+				tickExistChars = target.Chars
+			} else {
+				// 处理汉字匹配逻辑
+				for i := range class {
 					char := answerData.Chars[i]
 					if char == chars[i] {
 						tickExistChars[i] = char
@@ -327,69 +320,73 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 						tickExistChars[i] = "?"
 					}
 				}
-			}
 
-			// 确保 tickExistPinyin 有足够的长度
-			if len(tickExistPinyin) < minCharsLen {
-				for i := len(tickExistPinyin); i < minCharsLen; i++ {
-					tickExistPinyin = append(tickExistPinyin, "")
-				}
-			}
-
-			// 处理拼音匹配逻辑
-			minPinyinLen := min(len(pinyin), len(answerData.Pinyin))
-			for i := range minPinyinLen {
-				pyChar := pinyin[i]
-				answerPinyinChar := []rune(pyChar)
-				tickTruePinyinChar := make([]rune, len(answerPinyinChar))
-				tickExistPinyinChar := []rune(tickExistPinyin[i])
-
-				if tickTruePinyin[i] != "" {
-					copy(tickTruePinyinChar, []rune(tickTruePinyin[i]))
-				} else {
-					for k := range answerPinyinChar {
-						tickTruePinyinChar[k] = kong
+				// 确保 tickExistPinyin 有足够的长度
+				if len(tickExistPinyin) < class {
+					for i := len(tickExistPinyin); i < class; i++ {
+						tickExistPinyin = append(tickExistPinyin, "")
 					}
 				}
 
-				PinyinChar := answerData.Pinyin[i]
-				for j, c := range []rune(PinyinChar) {
-					if c == kong {
-						continue
-					}
-					switch {
-					case j < len(answerPinyinChar) && c == answerPinyinChar[j]:
-						tickTruePinyinChar[j] = c
-					case slices.Contains(answerPinyinChar, c):
-						// 如果字符存在但位置不对，添加到 tickExistPinyinChar
-						if !slices.Contains(tickExistPinyinChar, c) {
-							tickExistPinyinChar = append(tickExistPinyinChar, c)
-						}
-					default:
-						if j < len(tickTruePinyinChar) {
-							tickTruePinyinChar[j] = kong
+				// 处理拼音匹配逻辑
+				minPinyinLen := min(len(pinyin), len(answerData.Pinyin))
+				for i := range minPinyinLen {
+					pyChar := pinyin[i]
+					answerPinyinChar := []rune(pyChar)
+					tickTruePinyinChar := make([]rune, len(answerPinyinChar))
+					tickExistPinyinChar := []rune(tickExistPinyin[i])
+
+					if tickTruePinyin[i] != "" {
+						copy(tickTruePinyinChar, []rune(tickTruePinyin[i]))
+					} else {
+						for k := range answerPinyinChar {
+							tickTruePinyinChar[k] = kong
 						}
 					}
-				}
 
-				// 处理提示逻辑，将非匹配位置设为下划线
-				matchIndex := -1
-				for j, v := range tickTruePinyinChar {
-					if v != kong && v != '_' {
-						matchIndex = j
+					PinyinChar := answerData.Pinyin[i]
+					for j, c := range []rune(PinyinChar) {
+						if c == kong {
+							continue
+						}
+						switch {
+						case j < len(answerPinyinChar) && c == answerPinyinChar[j]:
+							tickTruePinyinChar[j] = c
+						case slices.Contains(answerPinyinChar, c):
+							// 如果字符存在但位置不对，添加到 tickExistPinyinChar
+							if !slices.Contains(tickExistPinyinChar, c) {
+								tickExistPinyinChar = append(tickExistPinyinChar, c)
+							}
+						default:
+							if j < len(tickTruePinyinChar) {
+								tickTruePinyinChar[j] = kong
+							}
+						}
 					}
+
+					// 处理提示逻辑，将非匹配位置设为下划线
+					matchIndex := -1
+					for j, v := range tickTruePinyinChar {
+						if v != kong && v != '_' {
+							matchIndex = j
+						}
+					}
+					for j := range tickTruePinyinChar {
+						if j > matchIndex {
+							break
+						}
+						if tickTruePinyinChar[j] == kong {
+							tickTruePinyinChar[j] = '_'
+						}
+					}
+					// 更新提示拼音
+					tickTruePinyin[i] = string(tickTruePinyinChar)
+					tickExistPinyin[i] = string(tickExistPinyinChar)
 				}
-				for j := range tickTruePinyinChar {
-					if j > matchIndex {
-						break
-					}
-					if tickTruePinyinChar[j] == kong {
-						tickTruePinyinChar[j] = '_'
-					}
+				if len(record) >= 2 {
+					tickTruePinyin[0] = pinyin[0]
+					tickExistChars[0] = chars[0]
 				}
-				// 更新提示拼音
-				tickTruePinyin[i] = string(tickTruePinyinChar)
-				tickExistPinyin[i] = string(tickExistPinyinChar)
 			}
 		}
 
@@ -401,7 +398,7 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 			}
 			existPinyin = append(existPinyin, v)
 		}
-		tickIdiom := idiomJson{
+		tickIdiom := idiomJSON{
 			Chars:  tickExistChars,
 			Pinyin: tickTruePinyin,
 		}
@@ -441,8 +438,8 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 			defer wg.Done()
 			answerImage = drawHanBlock(hanFontSize, pinFontSize, answerData, target)
 		}()
-		if len(record) > 1 {
-			wg.Add(len(record) - 1)
+		if len(record) > 0 {
+			wg.Add(len(record))
 			for i, v := range record {
 				imgHistery = append(imgHistery, nil)
 				go func(i int, v string) {
@@ -460,6 +457,15 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 			}
 		}
 		wg.Wait()
+
+		// 记录猜过的成语
+		if s != "" && !win {
+			record = append(record, s)
+		}
+
+		if tickImage == nil || answerImage == nil {
+			return
+		}
 
 		tickW, tickH := tickImage.Bounds().Dx(), tickImage.Bounds().Dy()
 		answerW, answerH := answerImage.Bounds().Dx(), answerImage.Bounds().Dy()
@@ -488,10 +494,11 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 				continue
 			}
 			x := ctxWidth / 4
-
 			y := tickH + int(wordH) + answerH + hisH*k
+
 			if i%2 == 1 {
 				x = ctxWidth * 3 / 4
+				y = tickH + int(wordH) + answerH + hisH*k
 				k++
 			}
 			ctx.DrawImageAnchored(v, x, y+hisH/2, 0.5, 0.5)
@@ -503,17 +510,12 @@ func newHandouGame(target idiomJson) func(string) (bool, []byte, error) {
 			return
 		}
 
-		// 记录猜过的成语
-		if s != "" && !win {
-			record = append(record, s)
-		}
-
 		return
 	}
 }
 
 // drawHanBlock 绘制汉字方块，支持多行显示（6字以上时分成两行）
-func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJson, exitPinyin ...string) image.Image {
+func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJSON, exitPinyin ...string) image.Image {
 	class := len(target.Chars)
 
 	// 确保切片长度一致
@@ -573,31 +575,28 @@ func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJson, exi
 		}
 
 		// 计算当前字符在哪一行哪一列
-		new_row := 0
+		idiomRows := 0
 		col := i
 		if rows > 1 {
-			new_row = i / charsPerRow
+			idiomRows = i / charsPerRow
 			col = i % charsPerRow
 		}
 
 		x := float64(space + col*blockPinWidth)
 		// 如果上一层字数是奇数就额外移位
-		if charsPerRow%2 == 1 {
+		if idiomRows%2 == 1 {
 			x += float64(blockPinWidth) / 2
 		}
-		y := float64(new_row*(int(pinHeight+hanHeight+boxPadding*2)+space*2) + space)
+		y := float64(idiomRows*(int(pinHeight+hanHeight+boxPadding*2)+space*2) + space)
 		if len(exitPinyin) > 0 {
-			y = float64(new_row*(int(pinHeight+hanHeight+boxPadding*2+pinHeight)+space*2) + space)
+			y = float64(idiomRows*(int(pinHeight+hanHeight+boxPadding*2+pinHeight)+space*2) + space)
 		}
 
 		// 绘制拼音
 		_ = ctx.ParseFontFace(pinyinFont, pinFontSize)
-		if i < len(target.Pinyin) && i < len(pinyin) {
-			targetPy := target.Pinyin[i]
-			ansPy := pinyin[i]
-
-			targetPinyinByte := []rune(targetPy)
-			pinyinByte := []rune(ansPy)
+		if i < len(pinyin) {
+			targetPinyinByte := []rune(target.Pinyin[i])
+			pinyinByte := []rune(pinyin[i])
 
 			// 取两者中的最大长度
 			pinTotalWidth := pinWidth * float64(len(pinyinByte))
@@ -606,18 +605,15 @@ func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJson, exi
 
 			for k, ch := range pinyinByte {
 				ctx.SetColor(colors[notexist])
-
-				if k < len(targetPinyinByte) {
-					for m, c := range targetPinyinByte {
-						if k == m && ch == c {
-							ctx.SetColor(colors[match])
-							break
-						} else if strings.ContainsRune(targetPy, ch) {
-							ctx.SetColor(colors[exist])
-						}
+				for m, c := range targetPinyinByte {
+					if k == m && ch == c {
+						ctx.SetColor(colors[match])
+						break
+					} else if ch == c {
+						ctx.SetColor(colors[exist])
 					}
-					ctx.DrawStringAnchored(string(ch), pinX+pinWidth*float64(k)+pinWidth/2, pinY, 0.5, 0.5)
 				}
+				ctx.DrawStringAnchored(string(ch), pinX+pinWidth*float64(k)+pinWidth/2, pinY, 0.5, 0.5)
 			}
 		}
 
@@ -632,9 +628,9 @@ func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJson, exi
 		char := chars[i]
 		switch {
 		case char == target.Chars[i]:
-			ctx.SetColor(colors[match])
+			ctx.SetColor(colors[blockmatch])
 		case char != "" && strings.Contains(target.Word, char):
-			ctx.SetColor(colors[exist])
+			ctx.SetColor(colors[blockexist])
 		default:
 			ctx.SetColor(colors[notexist])
 		}
@@ -658,7 +654,7 @@ func drawHanBlock(hanFontSize, pinFontSize float64, idiom, target idiomJson, exi
 	return ctx.Image()
 }
 
-func anserOutString(s idiomJson) string {
+func anserOutString(s idiomJSON) string {
 	msg := s.Word
 	if s.Baobian != "" && s.Baobian != "-" {
 		msg += "\n" + s.Baobian + "词"
@@ -673,5 +669,9 @@ func anserOutString(s idiomJson) string {
 	} else {
 		msg += "\n解释:无"
 	}
+	if len(s.Synonyms) > 0 {
+		msg += "\n近义词:\n" + strings.Join(s.Synonyms, ",")
+	}
+
 	return msg
 }

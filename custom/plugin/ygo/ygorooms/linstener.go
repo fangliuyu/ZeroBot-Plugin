@@ -93,10 +93,10 @@ func init() {
 		gameGroup.AddRoom(gid, roomName, newRoomInfo, server)
 		ctx.SendChain(message.Text("检测到ygo房间: ", roomName, "\n开始播报房间状态"))
 	})
+	// 在拉取ygo房间状态的处理函数中，添加nil检查
 	engine.OnFullMatch("拉取ygo房间状态", getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		// 异步处理，避免阻塞
 		go func() {
-
 			// 获取所有房间的快照
 			allRooms := gameGroup.GetAllRooms()
 			if len(allRooms) == 0 {
@@ -124,11 +124,19 @@ func init() {
 
 			// 收集并发送结果
 			for result := range results {
+				// 修复：添加nil检查
+				if result == nil {
+					continue
+				}
+
 				// 更新房间状态
 				if result.shouldUpdate {
-					gameGroup.UpdateRoom(result.groupID, result.roomName, func(info *GameInfo) {
-						info.RoomInfo = *result.newRoomInfo
-					})
+					// 修复：添加对newRoomInfo的nil检查
+					if result.newRoomInfo != nil {
+						gameGroup.UpdateRoom(result.groupID, result.roomName, func(info *GameInfo) {
+							info.RoomInfo = *result.newRoomInfo
+						})
+					}
 					// 发送消息
 					if result.message != "" {
 						ctx.SendGroupMessage(result.groupID, message.Text(result.message))
@@ -216,11 +224,13 @@ func processSingleRoom(roomsData *RoomsApiData, roomInfo *GameInfo) *roomUpdateR
 			return &roomUpdateResult{
 				groupID:      roomInfo.GroupID,
 				roomName:     roomName,
+				shouldUpdate: true,
 				message:      "[ygorooms播报]\n房间 " + roomName + " 已结束决斗\n持续时间 " + strconv.Itoa(int(elapsed)) + " 分钟",
 				shouldRemove: true,
+				newRoomInfo:  nil, // 明确设置为nil
 			}
 		}
-		return nil
+		return nil // 房间不存在但未达到移除条件，返回nil
 	}
 
 	// 检查状态是否变化
@@ -241,6 +251,7 @@ func processSingleRoom(roomsData *RoomsApiData, roomInfo *GameInfo) *roomUpdateR
 		message:      msg,
 		newRoomInfo:  newRoomInfo,
 		shouldUpdate: shouldSend,
+		shouldRemove: false,
 	}
 }
 
@@ -262,10 +273,8 @@ func generateRoomMessage(newRoom, oldRoom *RoomInfo) (string, bool) {
 	playerMsg := make(map[int]string, len(newRoom.Users))
 	for _, userData := range newRoom.Users {
 		userName := userData.Name
-		msg.WriteString("[玩家" + strconv.Itoa(userData.Pos) + "] " + userName + " :\n")
-
+		msg := "[玩家" + strconv.Itoa(userData.Pos) + "] " + userName + " :\n"
 		userMsg := ""
-
 		// 查找旧数据中的玩家信息
 		var oldUserInfo *UserInfo
 		for _, user := range oldRoom.Users {
@@ -280,17 +289,17 @@ func generateRoomMessage(newRoom, oldRoom *RoomInfo) (string, bool) {
 				userMsg, shouldSend = updateMsg(mode, *oldUserInfo, userData)
 			}
 			if userMsg == "" && userData.Pos < 4 {
-				userMsg += "等待中"
+				userMsg = "等待中"
 			}
 		} else {
 			if !waited {
 				userMsg, shouldSend = updateMsg(mode, UserInfo{}, userData)
 			}
 			if userMsg == "" {
-				userMsg += "加入房间"
+				userMsg = "加入房间"
 			}
 		}
-		playerMsg[userData.Pos] = userMsg
+		playerMsg[userData.Pos] = msg + userMsg
 
 	}
 	// 如果是2V2模式，血量共享

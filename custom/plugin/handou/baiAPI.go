@@ -3,7 +3,7 @@ package handou
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/url"
 	"os"
 	"slices"
@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/FloatTech/floatbox/web"
+	"github.com/sirupsen/logrus"
 )
 
 type baiduAPIData struct {
@@ -100,33 +101,33 @@ type baiduAPIData struct {
 	} `json:"data"`
 }
 
-func geiAPIdata(s string) (idiomJson, error) {
+func geiAPIdata(s string) (*idiomJSON, error) {
 	url := "https://hanyuapp.baidu.com/dictapp/swan/termdetail?wd=" + url.QueryEscape(s) + "&client=pc&source_tag=2&lesson_from=xiaodu"
-
+	logrus.Debugln(url)
 	data, err := web.GetData(url)
 	if err != nil {
-		return idiomJson{}, err
+		return nil, err
 	}
 
 	var apiData baiduAPIData
 	err = json.Unmarshal(data, &apiData)
 	if err != nil {
-		return idiomJson{}, err
+		return nil, err
 	}
 	if apiData.Data.Name == "" {
-		return idiomJson{}, fmt.Errorf("未找到该成语")
+		return nil, errors.New("未找到该成语")
 	}
 	derivation := ""
 	for _, v := range apiData.Data.ChuChu {
 		if derivation != "" {
 			derivation += "\n"
 		}
-		derivation += v.Dynasty + "·" + v.Author + v.Source + "：" + v.CiteOriginalText
+		derivation += v.Dynasty + "·" + v.Author + " " + v.Source + "：" + v.CiteOriginalText
 	}
 
 	explanation := apiData.Data.DefinitionInfo.Definition + apiData.Data.DefinitionInfo.ModernDefinition
 	if derivation == "" && explanation == "" {
-		return idiomJson{}, fmt.Errorf("无法获取成语词源和解释")
+		return nil, errors.New("无法获取成语词源和解释")
 	}
 	synonyms := make([]string, len(apiData.Data.Synonyms))
 	for i, synonym := range apiData.Data.Synonyms {
@@ -153,7 +154,7 @@ func geiAPIdata(s string) (idiomJson, error) {
 		pinyinSlice = strings.Split(apiData.Data.Definition[0].Pinyin, " ")
 	}
 
-	newIdiom := idiomJson{
+	newIdiom := idiomJSON{
 		Word:         apiData.Data.Name,
 		Chars:        chars,
 		Pinyin:       pinyinSlice,
@@ -164,12 +165,12 @@ func geiAPIdata(s string) (idiomJson, error) {
 		Abbreviation: apiData.Data.Structure,
 		Synonyms:     synonyms,
 	}
-	return newIdiom, nil
+	return &newIdiom, nil
 }
 
 var mu sync.Mutex
 
-func saveIdiomJson() error {
+func saveIdiomJSON() error {
 	mu.Lock()
 	defer mu.Unlock()
 	f, err := os.Create(idiomFilePath)

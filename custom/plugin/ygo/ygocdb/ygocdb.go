@@ -2,8 +2,6 @@
 package ygo
 
 import (
-	"bytes"
-	"image"
 	"io"
 	"math/rand"
 	"net/http"
@@ -359,7 +357,7 @@ func init() {
 		ctx.SendChain(message.At(ctx.Event.UserID), message.Text("没发现更新内容"))
 	})
 	ygocdb.OnFullMatchGroup([]string{"/ys", "随机一卡"}, checkUpdate).SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		data := drawCard()
+		data, _ := drawCard()
 		pic, err := drawimage(data)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
@@ -594,7 +592,7 @@ func init() {
 			return
 		}
 		for _, info := range infos {
-			data := drawCard()
+			data, _ := drawCard()
 			pic, err := drawimage(data)
 			if err != nil {
 				logrus.Errorf("%s 发送给群(%d)图片失败。%s", serviceErr, info.GID, err.Error())
@@ -699,8 +697,9 @@ func parsezip(zipFile string) error {
 	return nil
 }
 
-func drawCard(index ...int) cardInfo {
+func drawCard(index ...int) (cardInfo, string) {
 	data := cardInfo{}
+	picFile := ""
 	pageMax := len(cradList)
 	if pageMax > 0 {
 		data = localJSONData[cradList[rand.Intn(pageMax)]]
@@ -710,13 +709,21 @@ func drawCard(index ...int) cardInfo {
 		i = index[0]
 	}
 	if i > 10 {
-		return data
+		return data, picFile
 	}
 	if data.ID == 0 {
 		i++
-		data = drawCard(i)
+		return drawCard(i)
 	}
-	return data
+	picFile = cachePath + strconv.Itoa(data.ID) + ".jpg"
+	if file.IsNotExist(picFile) {
+		url := picherf + strconv.Itoa(data.ID) + ".jpg"
+		err := file.DownloadTo(url, picFile)
+		if err != nil {
+			return drawCard(i)
+		}
+	}
+	return data, picFile
 }
 
 // getStatus 获取状态
@@ -749,14 +756,10 @@ func (sdb *ygoDB) findAll() (dbInfos []*subscribe, err error) {
 
 // 绘制图片
 func drawimage(info cardInfo) (data []byte, err error) {
-	byteData, err := web.GetData(picherf + strconv.Itoa(info.ID) + ".jpg")
-	if err != nil {
-		return
-	}
 	// 卡图大小
-	cardPic, _, err := image.Decode(bytes.NewReader(byteData))
+	cardPic, err := gg.LoadImage(cachePath + strconv.Itoa(info.ID) + ".jpg")
 	if err != nil {
-		return
+		return nil, err
 	}
 	cardPic = imgfactory.Size(cardPic, 400, 580).Image()
 	picx := cardPic.Bounds().Dx()

@@ -3,7 +3,10 @@ package handou
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"slices"
 	"sync"
@@ -13,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// UserHabits 用户习惯
 type UserHabits struct {
 	mu          sync.RWMutex
 	habits      map[string]int // 单字频率
@@ -36,7 +40,7 @@ func initUserHabits() error {
 	if file.IsNotExist(userHabitsFile) {
 		f, err := os.Create(userHabitsFile)
 		if err != nil {
-			return fmt.Errorf("创建用户习惯库时发生错误: %v", err)
+			return errors.New("创建用户习惯库时发生错误: " + err.Error())
 		}
 		_ = f.Close()
 		return saveHabits()
@@ -45,7 +49,7 @@ func initUserHabits() error {
 	// 读取现有习惯数据
 	habitsFile, err := os.ReadFile(userHabitsFile)
 	if err != nil {
-		return fmt.Errorf("读取用户习惯库时发生错误: %v", err)
+		return errors.New("读取用户习惯库时发生错误: " + err.Error())
 	}
 
 	var savedData struct {
@@ -67,7 +71,7 @@ func initUserHabits() error {
 				savedData.TotalWords += count
 			}
 		} else {
-			return fmt.Errorf("解析用户习惯库时发生错误: %v", err)
+			return errors.New("解析用户习惯库时发生错误: " + err.Error())
 		}
 	}
 
@@ -152,7 +156,7 @@ func updateHabits(input string) error {
 	// 异步保存到文件
 	go func() {
 		if err := saveHabits(); err != nil {
-			logrus.Warn("保存用户习惯时发生错误: ", err)
+			logrus.Debugln("保存用户习惯时发生错误: ", err)
 		}
 	}()
 
@@ -169,38 +173,53 @@ func calculatePriorityScore(idiom string) float64 {
 	defer userHabits.mu.RUnlock()
 
 	chars := []rune(idiom)
-	score := 0.0
+	charsLenght := len(chars)
 
 	// 1. 基于单字频率的分数
+	charsScore := 0.0
 	for _, char := range chars {
 		charStr := string(char)
 		if count, exists := userHabits.habits[charStr]; exists {
 			// 使用TF-IDF思想：频率越高，权重越高，但通过总字数归一化
-			tf := float64(count) / float64(userHabits.totalWords)
-			score += tf * 100
+			tf := float64(count*10) / float64(userHabits.totalWords)
+			// score += tf * 100
+			charsScore += 100 / (1 + 10*math.Abs(tf-5)) // 规避一直是最热门的汉字
 		}
 	}
+	charsScore = charsScore / float64(charsLenght) * 60 / 100
 
 	// 2. 基于二元组频率的分数（词序的重要性）
-	for i := 0; i < len(chars)-1; i++ {
+	bigramScore := 0.0
+	for i := 0; i < charsLenght-1; i++ {
 		bigram := string(chars[i]) + string(chars[i+1])
 		if count, exists := userHabits.bigrams[bigram]; exists {
-			tf := float64(count) / float64(userHabits.totalWords)
-			score += tf * 150 // 二元组比单字更重要
+			tf := float64(count*10) / float64(userHabits.totalWords)
+			// score += tf * 150 // 二元组比单字更重要
+			bigramScore += 100 / (1 + 2*math.Abs(tf-5)) // 规避一直是最热门的词组
 		}
 	}
+	bigramScore = bigramScore / float64(charsLenght-1) * 40 / 100
 
 	// 3. 基于成语本身的频率（降低常见成语的优先级，增加多样性）
+	penaltyScore := 0.0
 	if idiomCount, exists := userHabits.idioms[idiom]; exists {
 		// 出现次数越多，优先级越低（避免总是出现相同的成语）
-		penalty := float64(idiomCount) / float64(userHabits.totalIdioms) * 200
-		score -= penalty
+		penalty := float64(idiomCount) / float64(userHabits.totalIdioms) * 100
+		penaltyScore -= penalty
 	}
 
-	// 4. 考虑成语长度（适当增加长成语的权重）
-	score += float64(len(chars)) * 10
+	// 4. 考虑成语长度, 让长成语也有机会被选中
+	idiomScore := 0.0
+	if rand.Intn(100) < 60 {
+		idiomScore = 20 / (1 + 1*math.Abs(float64(charsLenght)-4))
+	} else {
+		count := 2.0 + float64(rand.Intn(18))
+		idiomScore = 100 / (1 + 1*math.Abs(float64(charsLenght)-count))
+	}
 
-	return score
+	finalScore := charsScore + bigramScore + penaltyScore + idiomScore
+
+	return finalScore
 }
 
 // 优先抽取数据
@@ -238,12 +257,24 @@ func prioritizeData(data []string) []string {
 		return 0
 	})
 
-	// 选择前10个作为优先数据
-	limit := min(len(idiomScores), 10)
+	// 排除的前1/3的数量， 去除分数太高的成语
+	excludeCount := int(float64(len(idiomScores)) * 0.333)
+	if excludeCount < 1 && len(idiomScores) > 1 {
+		excludeCount = 1
+	}
+	startIndex := excludeCount
+	if startIndex >= len(idiomScores) {
+		startIndex = 0
+	}
+
+	// 选择接下来前10个作为优先数据
+	limit := min(len(idiomScores)-startIndex, 10)
 
 	prioritized := make([]string, limit)
 	for i := range limit {
-		prioritized[i] = idiomScores[i].idiom
+		prioritized[i] = idiomScores[startIndex+i].idiom
+		logrus.Debugf("成语 '%s' 分数=%.2f",
+			idiomScores[startIndex+i].idiom, idiomScores[startIndex+i].score)
 	}
 
 	return prioritized

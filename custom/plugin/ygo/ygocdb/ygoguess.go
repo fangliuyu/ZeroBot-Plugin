@@ -3,6 +3,7 @@ package ygo
 
 import (
 	"errors"
+	"image"
 	"image/color"
 	"math/rand"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/FloatTech/AnimeAPI/wallet"
-	"github.com/FloatTech/floatbox/file"
 	zbmath "github.com/FloatTech/floatbox/math"
 	"github.com/FloatTech/floatbox/process"
 	"github.com/FloatTech/imgfactory"
@@ -53,7 +53,7 @@ type GameInfo struct {
 type GameLimit struct {
 	Limit       int
 	LastTime    time.Time
-	GameStart   time.Time
+	GameStart   time.Duration
 	CooldownEnd time.Time
 }
 
@@ -159,20 +159,37 @@ func init() {
 			return
 		}
 		ctx.SendChain(message.Text("正在准备题目,请稍等"))
-		data := drawCard()
-		picFile := cachePath + strconv.Itoa(data.ID) + ".jpg"
-		if file.IsNotExist(picFile) {
-			url := picherf + strconv.Itoa(data.ID) + ".jpg"
-			err := file.DownloadTo(url, picFile)
-			if err != nil {
-				ctx.SendChain(message.Text("图片下载失败,可能被风控", err))
+		data, picFile := drawCard()
+		if picFile == "" {
+			ctx.SendChain(message.Text("[ERROR]图片下载失败,可能被风控"))
+			return
+		}
+		// 对卡图做处理
+		pic, err := gg.LoadImage(picFile)
+		if err != nil {
+			var newPic image.Image
+			for range 3 {
+				err = os.Remove(picFile)
+				if err != nil {
+					continue
+				}
+				data, picFile = drawCard()
+				picImage, err1 := gg.LoadImage(picFile)
+				if err1 == nil {
+					newPic = picImage
+					break
+				}
+			}
+			if newPic != nil {
+				pic = newPic
+			} else {
+				ctx.SendChain(message.Text("[ERROR]图片下载失败,可能被风控"))
 				return
 			}
 		}
-		// 对卡图做处理
-		pictrue, err := randPicture(picFile, data.Text.Types)
+		pictrue, err := randPicture(pic, data.Text.Types)
 		if err != nil {
-			ctx.SendChain(message.Text("[ERROR]", err))
+			ctx.SendChain(message.Text("[ERROR]图片处理失败,可能被风控"))
 			return
 		}
 		gameInfo := GameInfo{
@@ -252,8 +269,11 @@ func init() {
 		}
 		txt := ""
 		if diff > 45 {
-			sin := time.Since(gameInfo.LastTime).Minutes()
-			getMoney := (10 - gameInfo.Worry - gameInfo.TickCount - 2*int(sin)) * (diff - 45) / 45
+			sin := time.Since(gameInfo.LastTime).Seconds()
+			getMoney := (10 - gameInfo.Worry - gameInfo.TickCount - 2*int(sin/60)) * (diff - 45) / 45
+			if diff == 100 {
+				getMoney -= int(sin / 10)
+			}
 			if getMoney > 0 {
 				err := wallet.InsertWalletOf(ctx.Event.UserID, getMoney)
 				if err == nil {
@@ -261,6 +281,7 @@ func init() {
 				}
 			}
 		}
+		updateGameDuration(gid, gameInfo.LastTime)
 		defer gameRoom.Delete(gid)
 		anserName := gameInfo.Name[0]
 		if index != 0 {
@@ -326,11 +347,7 @@ func init() {
 }
 
 // 随机选择
-func randPicture(picFile, cardType string) ([]byte, error) {
-	pic, err := gg.LoadImage(picFile)
-	if err != nil {
-		return nil, err
-	}
+func randPicture(pic image.Image, cardType string) ([]byte, error) {
 	dst := imgfactory.Size(pic, pic.Bounds().Dx(), pic.Bounds().Dy())
 	if strings.Contains(cardType, "灵摆") {
 		dst = dst.Clip(370-29, 358-105, 29, 105)
@@ -674,14 +691,25 @@ func removePunctuation(text string) string {
 	}, text)
 }
 
-// 修改 checkLimit 函数
+func updateGameDuration(gid int64, startTime time.Time) {
+	// 更新猜卡检查中的累计时间
+	limitInfo, ok := gameCheck.Load(gid)
+	if ok {
+		gameLimit := limitInfo.(GameLimit)
+		duration := time.Since(startTime)
+		gameLimit.GameStart += duration
+		gameCheck.Store(gid, gameLimit)
+	}
+}
+
 func checkLimit(gid int64) (int, error) {
 	info, ok := gameCheck.Load(gid)
 	if !ok {
 		gameLimit := GameLimit{
-			Limit:     1,
-			LastTime:  time.Now(),
-			GameStart: time.Now(),
+			Limit:       1,
+			LastTime:    time.Now(),
+			GameStart:   time.Duration(0),
+			CooldownEnd: time.Time{},
 		}
 		gameCheck.Store(gid, gameLimit)
 		return 1, nil
@@ -689,36 +717,39 @@ func checkLimit(gid int64) (int, error) {
 
 	gameLimit := info.(GameLimit)
 
-	// 清除冷却状态
+	// 检查是否在冷却中
+	if !gameLimit.CooldownEnd.IsZero() && time.Now().Before(gameLimit.CooldownEnd) {
+		remaining := time.Until(gameLimit.CooldownEnd).Round(time.Second)
+		return gameLimit.Limit, errors.New("冷却时间中，剩余" + remaining.String())
+	}
+
+	// 如果冷却已结束，重置状态
 	if !gameLimit.CooldownEnd.IsZero() && time.Now().After(gameLimit.CooldownEnd) {
 		gameLimit.CooldownEnd = time.Time{}
-		gameLimit.GameStart = time.Now()
-	}
-
-	// 检查冷却状态
-	if !gameLimit.CooldownEnd.IsZero() && time.Now().Before(gameLimit.CooldownEnd) {
-		return gameLimit.Limit, errors.New("冷却时间中，剩余" +
-			time.Until(gameLimit.CooldownEnd).Round(time.Second).String())
-	}
-
-	// 检查是否达到1小时限制
-	if !gameLimit.GameStart.IsZero() && time.Since(gameLimit.GameStart) >= maxGameDuration {
-		gameCheck.Store(gid, GameLimit{
-			LastTime:    time.Now(),
-			CooldownEnd: time.Now().Add(cooldownPeriod),
-		})
-		return gameLimit.Limit, errors.New("游戏时间已达1小时，进入半小时冷却")
+		gameLimit.GameStart = time.Duration(0)
+		gameLimit.Limit = 0
 	}
 
 	// 检查是否是新的一天
 	now := time.Now()
 	if now.Day() != gameLimit.LastTime.Day() {
-		gameLimit.Limit = 1
-		gameLimit.GameStart = now
-	} else {
-		gameLimit.Limit++
+		// 新的一天，重置所有数据
+		gameLimit.Limit = 0
+		gameLimit.GameStart = time.Duration(0)
+		gameLimit.CooldownEnd = time.Time{}
 	}
 
+	// 检查游戏时间是否已达到1小时限制
+	if gameLimit.GameStart >= maxGameDuration {
+		// 进入冷却
+		gameLimit.CooldownEnd = now.Add(cooldownPeriod)
+		gameLimit.GameStart = time.Duration(0) // 重置游戏时间
+		gameCheck.Store(gid, gameLimit)
+		return gameLimit.Limit, errors.New("游戏时间已达1小时，进入半小时冷却")
+	}
+
+	// 增加题目计数
+	gameLimit.Limit++
 	gameLimit.LastTime = now
 	gameCheck.Store(gid, gameLimit)
 

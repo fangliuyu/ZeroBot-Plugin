@@ -335,14 +335,19 @@ func updateNativeCards() error {
 	for _, file := range files {
 		if !file.IsDir() {
 			add := true
+			newName := file.Name()
 			for _, name := range cards {
-				if name == file.Name() {
+				if name == newName {
 					add = false
 					continue
 				}
 			}
+			_, name := card2name(newName)
+			if name == "" {
+				continue
+			}
 			if add {
-				cards = append(cards, file.Name())
+				cards = append(cards, newName)
 			}
 		}
 	}
