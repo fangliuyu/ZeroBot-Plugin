@@ -40,7 +40,7 @@ func init() {
 		zero.RangeBot(func(id int64, _ *zero.Ctx) bool {
 			ctx := zero.GetBot(id)
 			fmt.Println("识别到机器人: ", id)
-			var gid int64 = 0
+			var gid int64
 			m, ok := control.Lookup(serviceName)
 			if ok {
 				mu.Lock()

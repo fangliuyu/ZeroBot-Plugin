@@ -625,6 +625,7 @@ func GetCardInfo(cardName string) (cardData []cardInfo, err error) {
 	return
 }
 
+// Cardtext 获取卡片文本信息
 func Cardtext(card cardInfo) string {
 	var cardtext []string
 	name := "C N卡名: " + card.CnName

@@ -103,6 +103,7 @@ type GameInfo struct {
 	RoomInfo
 }
 
+// GroupLock ...
 type GroupLock struct {
 	sync.RWMutex
 	rooms map[string]*GameInfo // key: groupID + ":" + roomName

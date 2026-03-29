@@ -17,18 +17,18 @@ import (
 )
 
 var (
-	defaultApi = "https://.../api/getrooms"
+	defaultAPI = "https://.../api/getrooms"
 )
 
 func init() {
-	apifile := engine.DataFolder() + "defaultAPI.txt"
-	if file.IsExist(apifile) {
-		apiInfo, err := os.ReadFile(apifile)
+	apiFile := engine.DataFolder() + "defaultAPI.txt"
+	if file.IsExist(apiFile) {
+		apiInfo, err := os.ReadFile(apiFile)
 		if err != nil {
 			logrus.Errorf("读取defaultAPI.txt失败: %v", err)
 			return
 		}
-		defaultApi = binary.BytesToString(apiInfo)
+		defaultAPI = binary.BytesToString(apiInfo)
 	}
 	engine.OnPrefix("绑定服务器", zero.OnlyGroup, getDB).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		server := strings.TrimSpace(ctx.State["args"].(string))
@@ -52,7 +52,7 @@ func init() {
 			return
 		}
 		// 验证服务器是否可以访问
-		_, err := GetApiRooms(server)
+		_, err := GetAPIRooms(server)
 		if err != nil {
 			ctx.SendChain(message.Text("[ygorooms] ERROR: ", err, "\nEXP: 添加失败, 无法访问服务器"))
 			return
@@ -166,7 +166,7 @@ func getServerForGroup(groupID int64) (string, error) {
 	}
 	// 默认服务器
 	if groupID == 759851475 || groupID == 1026352282 {
-		return defaultApi, nil
+		return defaultAPI, nil
 	}
 
 	return "", nil
@@ -196,7 +196,7 @@ func processServerRooms(server string, rooms []*GameInfo, results chan<- *roomUp
 	defer wg.Done()
 
 	// 获取服务器房间数据
-	roomsData, err := GetApiRooms(server)
+	roomsData, err := GetAPIRooms(server)
 	if err != nil {
 		logrus.Errorf("[ygorooms] 获取服务器 %s 数据失败: %v", server, err)
 		return
@@ -212,11 +212,11 @@ func processServerRooms(server string, rooms []*GameInfo, results chan<- *roomUp
 }
 
 // 处理单个房间
-func processSingleRoom(roomsData *RoomsApiData, roomInfo *GameInfo) *roomUpdateResult {
+func processSingleRoom(roomsData *RoomsAPIData, roomInfo *GameInfo) *roomUpdateResult {
 	roomName := roomInfo.RoomInfo.RoomName
 
 	// 查找最新的房间信息
-	newRoomInfo := FilterApiRooms(roomsData, roomName)
+	newRoomInfo := FilterAPIRooms(roomsData, roomName)
 	if newRoomInfo == nil {
 		// 房间不存在，检查是否应该移除
 		elapsed := time.Since(roomInfo.StartTime).Minutes()

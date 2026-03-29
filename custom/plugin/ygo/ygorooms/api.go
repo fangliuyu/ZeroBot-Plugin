@@ -9,10 +9,12 @@ import (
 	"github.com/FloatTech/floatbox/web"
 )
 
-type RoomsApiData struct {
+// RoomsAPIData ...
+type RoomsAPIData struct {
 	Rooms []RoomInfo `json:"rooms"`
 }
 
+// RoomInfo ...
 type RoomInfo struct {
 	RoomID   string     `json:"roomid"`
 	RoomName string     `json:"roomname"`
@@ -22,6 +24,7 @@ type RoomInfo struct {
 	Istart   string     `json:"istart"`
 }
 
+// UserInfo ...
 type UserInfo struct {
 	ID     string     `json:"id"`
 	Name   string     `json:"name"`
@@ -30,14 +33,15 @@ type UserInfo struct {
 	Pos    int        `json:"pos"`
 }
 
+// UserStatus ...
 type UserStatus struct {
 	Score int `json:"score"`
 	LP    int `json:"lp"`
 	Cards int `json:"cards"`
 }
 
-// GetApiRooms 获取API房间数据
-func GetApiRooms(server string) (data RoomsApiData, err error) {
+// GetAPIRooms 获取API房间数据
+func GetAPIRooms(server string) (data RoomsAPIData, err error) {
 	rep, err := web.GetData(server)
 	if err != nil {
 		return
@@ -46,8 +50,8 @@ func GetApiRooms(server string) (data RoomsApiData, err error) {
 	return
 }
 
-// FilterApiRooms 过滤API房间
-func FilterApiRooms(data *RoomsApiData, roomName string) *RoomInfo {
+// FilterAPIRooms 过滤API房间
+func FilterAPIRooms(data *RoomsAPIData, roomName string) *RoomInfo {
 	for _, room := range data.Rooms {
 		if room.RoomName == roomName {
 			return &room
@@ -82,9 +86,8 @@ func (room *RoomInfo) getGameStatus() string {
 		case "双打房":
 			if num < 4 {
 				return "等待中(4=" + strconv.Itoa(num) + ")"
-			} else {
-				return "等待中"
 			}
+			return "等待中"
 		default:
 			return "等待中"
 		}

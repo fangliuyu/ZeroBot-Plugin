@@ -1,3 +1,4 @@
+// Package baidufanyi 百度翻译插件
 package baidufanyi
 
 import (

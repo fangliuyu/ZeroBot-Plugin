@@ -39,10 +39,7 @@ var (
 	}
 )
 
-// ShellRule Example
-// 本插件仅作为演示
-// Note: 只有带 flag 的Tag的字段才会注册,
-// 支支持 bool, int, string, float64 四种类型
+// RoomRule ...
 type RoomRule struct {
 	T      int    `flag:"tm"` // 0~99  (每回合时间，单位:分钟)
 	TM     int    `flag:"时间"` // 0~99  (每回合时间，单位:分钟)

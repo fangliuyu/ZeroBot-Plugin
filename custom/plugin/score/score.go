@@ -53,7 +53,7 @@ type score struct {
 
 // 用户数据信息
 type userdata struct {
-	Uid        int64  // `Userid`
+	UID        int64  // `Userid`
 	UserName   string // `User`
 	UpdatedAt  int64  // `签到时间`
 	Continuous int    // `连续签到次数`
@@ -142,7 +142,7 @@ func init() {
 	engine.OnFullMatchGroup([]string{"签到", "打卡"}, getdb).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		uid := ctx.Event.UserID
 		userinfo := scoredata.getData(uid)
-		userinfo.Uid = uid
+		userinfo.UID = uid
 		userinfo.UserName = ctx.CardOrNickName(uid) // 更新昵称
 		lasttime := time.Unix(userinfo.UpdatedAt, 0)
 		score := wallet.GetWalletOf(uid)
@@ -208,7 +208,7 @@ func init() {
 			}
 		}()
 		var wg sync.WaitGroup
-		var syncerr error = nil
+		var syncerr error
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -235,7 +235,7 @@ func init() {
 			if subtime > 48 {
 				userinfo.Continuous = 1
 			} else {
-				userinfo.Continuous += 1
+				userinfo.Continuous++
 				add = int(math.Min(5, float64(userinfo.Continuous)))
 			}
 			userinfo.UpdatedAt = time.Now().Unix()
@@ -331,7 +331,7 @@ func init() {
 			uid, _ = strconv.ParseInt(changeuser, 10, 64)
 		}
 		userinfo := scoredata.getData(uid)
-		userinfo.Uid = uid
+		userinfo.UID = uid
 		for dataName, value := range changeData {
 			switch dataName {
 			case "签到时间":
@@ -382,7 +382,7 @@ func (sdb *score) setData(userinfo userdata) error {
 
 }
 
-// DownloadTo 下载到路径
+// DownloadLoliconTo 下载到路径
 func DownloadLoliconTo(pid, url, path string) (imagePath string, err error) {
 	// 解析URL和图片类型
 	url, index, ok := strings.Cut(url, pid)
@@ -510,7 +510,7 @@ func DownloadLoliconTo(pid, url, path string) (imagePath string, err error) {
 	return
 }
 
-// DownloadTo的context包装器
+// DownloadToWithContext 带Context的下载函数，支持超时和取消
 func DownloadToWithContext(ctx context.Context, url, path string) (string, error) {
 	// 使用channel来支持超时
 	resultCh := make(chan struct {
@@ -815,7 +815,7 @@ func drawImage(userinfo *userdata, score, add int) (data []byte, err error) {
 	canvas.SetRGBA255(255, 255, 255, 255)
 	canvas.Stroke()
 	// 放置头像
-	getAvatar, err := web.GetData("http://q4.qlogo.cn/g?b=qq&nk=" + strconv.FormatInt(userinfo.Uid, 10) + "&s=640")
+	getAvatar, err := web.GetData("http://q4.qlogo.cn/g?b=qq&nk=" + strconv.FormatInt(userinfo.UID, 10) + "&s=640")
 	if err != nil {
 		return
 	}

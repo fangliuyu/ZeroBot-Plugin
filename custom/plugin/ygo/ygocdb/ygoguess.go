@@ -50,6 +50,7 @@ type GameInfo struct {
 	AnswerCount int       // 问答次数
 }
 
+// GameLimit 游戏限制
 type GameLimit struct {
 	Limit       int
 	LastTime    time.Time

@@ -193,7 +193,7 @@ func init() {
 	en.OnPrefixGroup([]string{`查看钱包余额`, `查看我的钱包`}).SetBlock(true).Limit(ctxext.LimitByGroup).
 		Handle(func(ctx *zero.Ctx) {
 			param := ctx.State["args"].(string)
-			var txt string = "你"
+			var txt = "你"
 			var uidStr string
 			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
 				txt = "ta"

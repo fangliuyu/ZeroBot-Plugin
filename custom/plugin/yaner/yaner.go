@@ -97,7 +97,7 @@ func init() {
 		}
 		c := int(r[0] - '0')
 		if c%3 == 0 && rand.Intn(100) < 20 {
-			c += 1
+			c++
 			ctx.SendChain(message.ParseMessageFromString(raw)...)
 		}
 		sm.Store(gid, strconv.Itoa(c+1)+": "+raw)
