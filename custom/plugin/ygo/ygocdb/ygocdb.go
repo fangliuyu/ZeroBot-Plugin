@@ -583,7 +583,7 @@ func init() {
 		ctx.SendChain(message.Text("订阅成功~以后每天12点将会自动分享一张卡片~"))
 	})
 	ygocdb.OnFullMatch("分享卡片", getDB, checkUpdate).SetBlock(true).Handle(func(ctx *zero.Ctx) {
-		infos, err := database.findAll()
+		infos, err := database.findAllData()
 		if err != nil {
 			logrus.Warningf("%s %s", serviceErr, err.Error())
 			return
@@ -611,18 +611,17 @@ func init() {
 }
 
 // GetCardInfo 获取卡片信息
-func GetCardInfo(cardName string) (cardData []cardInfo, err error) {
+func GetCardInfo(cardName string) ([]cardInfo, error) {
 	data, err := web.GetData(api + url.QueryEscape(cardName))
 	if err != nil {
-		return
+		return nil, err
 	}
 	var result searchResult
 	err = json.Unmarshal(data, &result)
 	if err != nil {
-		return
+		return nil, err
 	}
-	cardData = result.Result
-	return
+	return result.Result, nil
 }
 
 // Cardtext 获取卡片文本信息
@@ -748,11 +747,11 @@ func (cdb *ygoDB) addStatus(gid int64) error {
 	return cdb.db.Insert("subscribe", &subscribe{GID: gid})
 }
 
-// findAll 查询所有库信息
-func (sdb *ygoDB) findAll() (dbInfos []*subscribe, err error) {
-	sdb.Lock()
-	defer sdb.Unlock()
-	return sql.FindAll[subscribe](&sdb.db, "subscribe", "")
+// findAllData 查询所有库信息
+func (cdb *ygoDB) findAllData() (dbInfos []*subscribe, err error) {
+	cdb.Lock()
+	defer cdb.Unlock()
+	return sql.FindAll[subscribe](&cdb.db, "subscribe", "")
 }
 
 // 绘制图片

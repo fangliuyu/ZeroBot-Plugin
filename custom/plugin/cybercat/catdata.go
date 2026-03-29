@@ -247,13 +247,13 @@ func (sql *catdb) catDie(gid, uid string) error {
 	return sql.db.Del(gid, "where user = "+uid)
 }
 
-func (sql *catdb) getGroupCatdata(gid string) (list []catInfo, err error) {
+func (sql *catdb) getGroupCatdata(gid string) ([]catInfo, error) {
 	sql.RLock()
 	defer sql.RUnlock()
 	var nekoList []catInfo
 	var catList []catInfo
 	info := catInfo{}
-	err = sql.db.FindFor(gid, &info, "order by Breed DESC, Experience DESC", func() error {
+	err := sql.db.FindFor(gid, &info, "order by Breed DESC, Experience DESC", func() error {
 		if info.Name != "" {
 			if info.Type == "猫娘" {
 				nekoList = append(nekoList, info)
@@ -264,8 +264,8 @@ func (sql *catdb) getGroupCatdata(gid string) (list []catInfo, err error) {
 		return nil
 	})
 
-	list = append(nekoList, catList...)
-	return
+	nekoList = append(nekoList, catList...)
+	return nekoList, err
 }
 
 func (sql *catdb) getHomeInfo(uid string) (dbInfo warehouse, err error) {

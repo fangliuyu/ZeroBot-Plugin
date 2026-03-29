@@ -313,7 +313,7 @@ func translate(txt, sl, tl string) (from, to, translated string, err error) {
 	if err != nil {
 		return
 	}
-	var result []string
+	var result = make([]string, len(parsed.TransResult))
 	for _, transResult := range parsed.TransResult {
 		result = append(result, transResult.Dst)
 	}

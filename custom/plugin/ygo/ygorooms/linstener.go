@@ -159,7 +159,7 @@ func getServerForGroup(groupID int64) (string, error) {
 	// 先尝试从数据库获取
 	infos, err := database.find(serverTable, groupID)
 	if err != nil {
-		logrus.Warnln("[ygorooms播报] ERROR: ", err)
+		return "", err
 	}
 	if infos.Info != "" {
 		return infos.Info, nil

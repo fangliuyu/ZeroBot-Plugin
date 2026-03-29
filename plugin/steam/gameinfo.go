@@ -423,10 +423,10 @@ func searchWithUpdateList(keyword string) (apps []int) {
 	return
 }
 
+// ConcurrentFuzzySearch 并发模糊搜索游戏列表
 func ConcurrentFuzzySearch(keyword string) []int {
 	keywordLower := strings.ToLower(keyword)
-	var results []App
-	var finalResults []int
+	var results = make([]App, 0)
 
 	for _, app := range gameList {
 		// 在英文名称中搜索
@@ -439,6 +439,7 @@ func ConcurrentFuzzySearch(keyword string) []int {
 			results = append(results, app)
 		}
 	}
+	var finalResults = make([]int, len(results))
 
 	for _, app := range results {
 		finalResults = append(finalResults, app.Appid)

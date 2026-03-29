@@ -276,11 +276,12 @@ func init() {
 			}
 			param := strings.TrimSpace(ctx.State["args"].(string))
 			var uid int64
-			if len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at" {
+			switch {
+			case len(ctx.Event.Message) > 1 && ctx.Event.Message[1].Type == "at":
 				uid, _ = strconv.ParseInt(ctx.Event.Message[1].Data["qq"], 10, 64)
-			} else if param == "" {
+			case param == "":
 				uid = ctx.Event.UserID
-			} else {
+			default:
 				paramUID, err := strconv.ParseInt(param, 10, 64)
 				if err != nil {
 					ctx.SendChain(message.Text("请输入正确的QQ号,", err))

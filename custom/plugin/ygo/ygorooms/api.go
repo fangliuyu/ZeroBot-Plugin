@@ -92,21 +92,17 @@ func (room *RoomInfo) getGameStatus() string {
 			return "等待中"
 		}
 	}
-	data, err := parseKeyValue(status)
-	if err != nil {
-		return status
-	}
+	data := parseKeyValue(status)
 	if mode == "BO3" {
 		return "第" + data["Duel"] + "局的第" + data["Turn"] + "回合"
 	}
 	return "第" + data["Turn"] + "回合"
 }
 
-func parseKeyValue(s string) (map[string]string, error) {
+func parseKeyValue(s string) map[string]string {
 	result := make(map[string]string)
-	parts := strings.Split(s, " ")
 
-	for _, part := range parts {
+	for part := range strings.SplitSeq(s, " ") {
 		kv := strings.Split(part, ":")
 		if len(kv) != 2 {
 			continue // 跳过无效格式
@@ -115,5 +111,5 @@ func parseKeyValue(s string) (map[string]string, error) {
 		value := strings.TrimSpace(kv[1])
 		result[name] = value
 	}
-	return result, nil
+	return result
 }

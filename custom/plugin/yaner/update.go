@@ -185,7 +185,7 @@ func init() {
 }
 
 // 打包成zip文件
-func fileZipTo(src_dir string, zip_file_name string) error {
+func fileZipTo(srcDir string, zip_file_name string) error {
 	// 创建：zip文件
 	zipfile, err := os.Create(zip_file_name)
 	if err != nil {
@@ -198,10 +198,10 @@ func fileZipTo(src_dir string, zip_file_name string) error {
 	defer archive.Close()
 
 	// 遍历路径信息
-	err = filepath.Walk(src_dir, func(path string, info os.FileInfo, _ error) error {
+	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, _ error) error {
 
 		// 如果是源路径，提前进行下一个遍历
-		if path == src_dir {
+		if path == srcDir {
 			return nil
 		}
 
@@ -210,7 +210,7 @@ func fileZipTo(src_dir string, zip_file_name string) error {
 		if err != nil {
 			return err
 		}
-		header.Name = strings.TrimPrefix(path, src_dir+`/`)
+		header.Name = strings.TrimPrefix(path, srcDir+`/`)
 
 		// 判断：文件是不是文件夹
 		if info.IsDir() {

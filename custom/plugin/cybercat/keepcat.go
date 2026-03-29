@@ -95,7 +95,7 @@ func init() {
 		if userInfo.Experience > 2000 {
 			if rand.Intn(100) < 40 {
 				userInfo.Type = "猫娘"
-				userInfo.Breed += 1
+				userInfo.Breed ++
 				userInfo.Weight = 2 + rand.Float64()*1
 				userInfo.Experience -= 1000
 				userInfo.LastTime = time.Now().Unix()
@@ -272,7 +272,7 @@ func init() {
 		if userInfo.Experience > 2000 {
 			if rand.Intn(100) < 40 {
 				userInfo.Type = "猫娘"
-				userInfo.Breed += 1
+				userInfo.Breed ++
 				userInfo.Weight = 2 + rand.Float64()*10
 				userInfo.Experience -= 1000
 				userInfo.LastTime = time.Now().Unix()
@@ -434,7 +434,7 @@ func init() {
 			stauts := "突破成功"
 			if rand.Intn(100) < 40 {
 				userInfo.Type = "猫娘"
-				userInfo.Breed += 1
+				userInfo.Breed ++
 				userInfo.Weight = 2 + rand.Float64()*10
 				userInfo.Experience -= 1000
 				ctx.SendChain(message.Reply(id), message.Text(userInfo.Name, "进化值圆满，顿悟成功，进化成猫娘了!\n可以发送“上传猫猫照片”修改图像了喔"))
@@ -633,7 +633,7 @@ func init() {
 			case randomNum < 30:
 				stauts = "突破成功"
 				userInfo.Type = "猫娘"
-				userInfo.Breed += 1
+				userInfo.Breed ++
 				userInfo.Weight = 2 + rand.Float64()
 				userInfo.Experience -= 1000
 				userInfo.LastTime = time.Now().Unix()
@@ -654,7 +654,7 @@ func init() {
 				}
 				stauts = "突破失败，根基受损"
 				userInfo.Weight = rand.Float64() * userInfo.Weight
-				userInfo.Breed -= 1
+				userInfo.Breed --
 				userInfo.Experience = rand.Intn(500)
 				userInfo.LastTime = time.Now().Unix()
 				if err = catdata.updateCatInfo(gidStr, userInfo); err != nil {
