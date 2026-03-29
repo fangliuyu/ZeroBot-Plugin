@@ -58,6 +58,7 @@ type RoomRule struct {
 	Rule   int    `flag:"卡表"` // 卡表位号  (0表示无禁卡)
 	Match  bool   `flag:"m"`  // 开启BO3房
 	Doubel bool   `flag:"t"`  // 开启双打房
+	Team   bool   `flag:"双"`  // 开启双打房
 	OT     bool   `flag:"ot"` // 可使用T独, OT混合卡池
 	C      bool   `flag:"nc"` // 不检查卡组
 	F      bool   `flag:"ns"` // 不洗切卡组
@@ -108,7 +109,7 @@ func init() {
 			name = zooms[rand.Intn(len(zooms))]
 		}
 
-		if rule.Doubel && !slices.Contains(roomname, "T") {
+		if (rule.Doubel || rule.Team) && !slices.Contains(roomname, "T") {
 			roomname = append(roomname, "T")
 		}
 		if rule.Match && !slices.Contains(roomname, "M") {

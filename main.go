@@ -77,9 +77,9 @@ import (
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/base16384"         // base16384加解密
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/base64gua"         // base64卦加解密
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/baseamasiro"       // base天城文加解密
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili" // b站相关
-	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibiliparse" // b站相关
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibilipush" // b站相关
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibili"      // b站相关
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibiliparse" // b站相关
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bilibilipush"  // b站相关
 
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/bookreview"        // 哀伤雪刃吧推书记录
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/chess"             // 国际象棋
@@ -137,7 +137,9 @@ import (
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/nwife"             // 本地老婆
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/omikuji"           // 浅草寺求签
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/poker"             // 抽扑克
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/pig"    // 来份猪猪
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qqwife" // 一群一天一夫一妻制群老婆
+
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/qzone"             // qq空间表白墙
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/realcugan"         // realcugan清晰术
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/reborn"            // 投胎
@@ -155,7 +157,9 @@ import (
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tiangou"           // 舔狗日记
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tracemoe" // 搜番
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/translation"       // 翻译
-	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet" // 钱包
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet"  // 钱包
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/xhstext" // 小红书文案
+
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wantquotes"        // 据意查句
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/warframeapi"       // warframeAPI插件
 	//_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wife"              // 抽老婆

@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	fcext "github.com/FloatTech/floatbox/ctxext"
 	"github.com/FloatTech/floatbox/file"
 	"github.com/FloatTech/floatbox/web"
+	ctrl "github.com/FloatTech/zbpctrl"
 	trshttp "github.com/fumiama/terasu/http"
 	"github.com/sirupsen/logrus"
 	zero "github.com/wdvxdr1123/ZeroBot"
@@ -21,13 +24,13 @@ import (
 
 // ----------------------- 远程调用 ----------------------
 const (
-	gameListURL = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"   // 获取所有游戏列表
-	gameInfoURL = "https://store.steampowered.com/api/appdetails?appids=%+v" // 游戏详情页
+	gameListURL = "https://partner.steam-api.com/IStoreService/GetAppList/v1/?key=%+v" // 获取所有游戏列表
+	gameInfoURL = "https://store.steampowered.com/api/appdetails?appids=%+v"           // 游戏详情页
 	ua          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0"
 )
 
-// GameList 游戏列表接口返回的数据结构
-type GameList struct {
+// AppList 游戏列表接口返回的数据结构
+type AppList struct {
 	Applist struct {
 		Apps []App `json:"apps"`
 	} `json:"applist"`
@@ -35,8 +38,9 @@ type GameList struct {
 
 // App 游戏列表中的每个游戏数据结构
 type App struct {
-	Appid int    `json:"appid"`
-	Name  string `json:"name"`
+	Appid  int    `json:"appid"`
+	Name   string `json:"name"`
+	CnName string `json:"cn_name,omitempty"`
 }
 
 // AppInfo 游戏详情接口返回的数据结构
@@ -202,35 +206,54 @@ type GameInfo struct {
 }
 
 var (
-	cfgFile  = engine.DataFolder() + "applist.json"
-	gamelist GameList
+	cache = struct {
+		sync.RWMutex
+		m map[int]string
+	}{m: make(map[int]string)}
+	gameList    []App
+	cfgFile     = engine.DataFolder() + "applist.json"
+	getGameList = fcext.DoOnceOnSuccess(func(ctx *zero.Ctx) bool {
+		if file.IsExist(cfgFile) {
+			reader, err := os.Open(cfgFile)
+			if err == nil {
+				err = json.NewDecoder(reader).Decode(&gameList)
+			}
+			if err != nil {
+				ctx.SendChain(message.Text("[steam] ERROR: ", err))
+				return false
+			}
+			err = reader.Close()
+			if err != nil {
+				ctx.SendChain(message.Text("[steam] ERROR: ", err))
+				return false
+			}
+			logrus.Infoln("[steam]获取Steam游戏列表,共", len(gameList), "个游戏")
+		} else {
+			// 校验密钥是否初始化
+			m := ctx.State["manager"].(*ctrl.Control[*zero.Ctx])
+			apiKeyMu.Lock()
+			defer apiKeyMu.Unlock()
+			_ = m.GetExtra(&apiKey)
+			if apiKey == "" {
+				ctx.SendChain(message.Text("ERROR: 未设置steam apikey"))
+				return false
+			}
+			err := fetchGameList()
+			if err != nil {
+				ctx.SendChain(message.Text("[steam] ERROR: ", err))
+				return false
+			}
+		}
+		return true
+	})
 )
 
 func init() {
-	if file.IsExist(cfgFile) {
-		reader, err := os.Open(cfgFile)
-		if err == nil {
-			err = json.NewDecoder(reader).Decode(&gamelist)
-		}
-		if err != nil {
-			panic(err)
-		}
-		err = reader.Close()
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		err := fetchGameList()
-		if err != nil {
-			logrus.Warn("获取Steam游戏列表失败: ", err)
-		}
-	}
-	engine.OnRegex(`steam (.+)$`).SetBlock(true).Handle(func(ctx *zero.Ctx) {
+	engine.OnRegex(`^steam (.+)$`, getGameList).SetBlock(true).Handle(func(ctx *zero.Ctx) {
 		gameName := ctx.State["regex_matched"].([]string)[1]
-		logrus.Warn("___________\n\n", gameName, "\n\n___________")
-		apps := ConcurrentFuzzySearch(gamelist, gameName)
+		apps := ConcurrentFuzzySearch(gameName)
 		if len(apps) == 0 {
-			apps = updateList(gameName)
+			apps = searchWithUpdateList(gameName)
 			if len(apps) == 0 {
 				ctx.SendChain(message.Text("未找到相关游戏"))
 				return
@@ -285,9 +308,11 @@ func init() {
 
 func fetchGameList() error {
 	var response *http.Response
-	response, err := trshttp.Get(gameListURL)
+	url := fmt.Sprintf(gameListURL, apiKey)
+	print(url)
+	response, err := trshttp.Get(url)
 	if err != nil {
-		response, err = http.Get(gameListURL)
+		response, err = http.Get(url)
 	}
 	if err != nil {
 		return err
@@ -299,100 +324,128 @@ func fetchGameList() error {
 	}
 	defer response.Body.Close()
 
-	err = json.NewDecoder(response.Body).Decode(&gamelist)
+	var appList AppList
+	err = json.NewDecoder(response.Body).Decode(&appList)
 	if err != nil {
 		return err
 	}
 
-	reader, err := os.Create(cfgFile)
-	if err == nil {
-		err = json.NewEncoder(reader).Encode(&gamelist)
+	logrus.Infoln("[steam]共读取到", len(appList.Applist.Apps), "个应用")
+
+	// 并发获取中文名称
+	apps := appList.Applist.Apps
+	gameList = make([]App, 0, len(apps))
+
+	// 使用worker pool处理
+	var wg sync.WaitGroup
+	ch := make(chan App, len(apps))
+	resultCh := make(chan App, len(apps))
+
+	// 启动worker
+	workerCount := 5
+	for range workerCount {
+		wg.Add(1)
+		go worker(ch, resultCh, &wg)
 	}
+
+	// 发送任务
+	for _, app := range apps {
+		ch <- app
+	}
+	close(ch)
+
+	// 等待所有worker完成
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	// 收集结果
+	for app := range resultCh {
+		gameList = append(gameList, app)
+	}
+
+	// 保存结果
+	output, err := json.MarshalIndent(gameList, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(cfgFile, output, 0644)
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugln("处理完成，结果已保存到", cfgFile)
 	return err
 }
 
-func updateList(keyword string) (apps []int) {
+// worker 处理获取中文名称的工作
+func worker(ch <-chan App, resultCh chan<- App, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for app := range ch {
+		cache.RLock()
+		cnName, ok := cache.m[app.Appid]
+		cache.RUnlock()
+
+		if ok {
+			app.CnName = cnName
+			resultCh <- app
+			continue
+		}
+
+		gameInfo, err := getGameWebData(app.Appid)
+		if err != nil {
+			logrus.Warnln("获取游戏信息失败: ", err)
+			continue
+		}
+		cnName = gameInfo.Name
+
+		cache.Lock()
+		cache.m[app.Appid] = cnName
+		cache.Unlock()
+
+		app.CnName = cnName
+		resultCh <- app
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func searchWithUpdateList(keyword string) (apps []int) {
 	err := fetchGameList()
 	if err != nil {
 		logrus.Warn("更新Steam游戏列表失败: ", err)
 		return
 	}
-	apps = ConcurrentFuzzySearch(gamelist, keyword)
+	apps = ConcurrentFuzzySearch(keyword)
 	return
 }
 
-func ConcurrentFuzzySearch(data GameList, keyword string) []int {
-	var wg sync.WaitGroup
-	results := make(chan int, len(data.Applist.Apps))
-	var mutex sync.Mutex
+func ConcurrentFuzzySearch(keyword string) []int {
+	keywordLower := strings.ToLower(keyword)
+	var results []App
 	var finalResults []int
 
-	for _, app := range data.Applist.Apps {
-		wg.Add(1)
-		go func(a App) {
-			defer wg.Done()
-			if strings.Contains(strings.ToLower(a.Name), strings.ToLower(keyword)) {
-				mutex.Lock()
-				results <- a.Appid
-				mutex.Unlock()
-			}
-		}(app)
+	for _, app := range gameList {
+		// 在英文名称中搜索
+		if strings.Contains(strings.ToLower(app.Name), keywordLower) {
+			results = append(results, app)
+			continue
+		}
+		// 在中文名称中搜索
+		if strings.Contains(strings.ToLower(app.CnName), keywordLower) {
+			results = append(results, app)
+		}
 	}
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	for app := range results {
-		finalResults = append(finalResults, app)
+	for _, app := range results {
+		finalResults = append(finalResults, app.Appid)
 	}
 	// 优先返回老游戏
-	sort.Slice(finalResults, func(i, j int) bool {
-		return finalResults[i] < finalResults[j]
-	})
+	slices.Sort(finalResults)
 	return finalResults
-}
-
-// 并发获取多个游戏信息(预留)
-//
-//lint:ignore U1000 Ignore unused function temporarily for debugging
-func getGameListData(data []App) (gameInfoList []GameInfo, err error) {
-	var wg sync.WaitGroup
-	results := make(chan GameInfo, len(data))
-	var mutex sync.Mutex
-
-	for _, app := range data {
-		wg.Add(1)
-		go func(a App) {
-			defer wg.Done()
-			gameinfo, webErr := getGameWebData(a.Appid)
-			mutex.Lock()
-			if webErr != nil {
-				if err != nil {
-					err = errors.New(
-						err.Error() + ";\n" +
-							"获取《" + a.Name + "》游戏信息失败: " + webErr.Error(),
-					)
-				} else {
-					err = webErr
-				}
-				return
-			}
-			results <- gameinfo
-			mutex.Unlock()
-		}(app)
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	for gameinfo := range results {
-		gameInfoList = append(gameInfoList, gameinfo)
-	}
-	return
 }
 
 func getGameWebData(appid int) (data GameInfo, err error) {

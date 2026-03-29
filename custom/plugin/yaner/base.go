@@ -62,7 +62,7 @@ func init() {
 			return true
 		})
 	}() //*/
-	zero.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
+	engine.OnFullMatchGroup([]string{"重启", "洗手手"}, zero.OnlyToMe, zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			m, ok := control.Lookup(serviceName)
 			if ok {
@@ -84,13 +84,13 @@ func init() {
 			os.Exit(0)
 		})
 	// 运行 CQ 码
-	zero.OnPrefix("run", zero.SuperUserPermission).SetBlock(true).
+	engine.OnPrefix("run", zero.SuperUserPermission).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			// 可注入，权限为主人
 			ctx.Send(message.UnescapeCQCodeText(ctx.State["args"].(string)))
 		})
 	// 撤回最后的发言
-	zero.OnRegex(`^\[CQ:reply,id=([^\]]*)\].*`, zero.KeywordRule("多嘴", "撤回")).SetBlock(true).
+	engine.OnRegex(`^\[CQ:reply,id=([^\]]*)\].*`, zero.KeywordRule("多嘴", "撤回")).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			// 获取消息id
 			mid := ctx.State["regex_matched"].([]string)[1]
@@ -101,7 +101,7 @@ func init() {
 			ctx.DeleteMessage(message.NewMessageIDFromString(mid))
 			ctx.DeleteMessage(message.NewMessageIDFromInteger(ctx.Event.MessageID.(int64)))
 		})
-	zero.OnNotice(func(ctx *zero.Ctx) bool {
+	engine.OnNotice(func(ctx *zero.Ctx) bool {
 		return ctx.Event.NoticeType == "group_recall" || ctx.Event.NoticeType == "friend_recall"
 	}).SetBlock(false).Handle(func(ctx *zero.Ctx) {
 		id, ok := ctx.Event.MessageID.(int64)
@@ -114,7 +114,7 @@ func init() {
 		}
 	})
 	// 反馈信息
-	zero.OnCommand("反馈").SetBlock(true).
+	engine.OnCommand("反馈").SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			gid := ctx.Event.GroupID
 			uid := ctx.Event.UserID

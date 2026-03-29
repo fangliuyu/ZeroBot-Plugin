@@ -2,6 +2,7 @@
 package gif
 
 import (
+	"os"
 	"strconv"
 	"strings"
 
@@ -166,6 +167,11 @@ func init() { // 插件主体
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return
 		}
-		ctx.SendChain(message.Image(picurl))
+		data, err := os.ReadFile(picurl)
+		if err != nil {
+			ctx.SendChain(message.Text("ERROR: ", err))
+			return
+		}
+		ctx.SendChain(message.ImageBytes(data))
 	})
 }

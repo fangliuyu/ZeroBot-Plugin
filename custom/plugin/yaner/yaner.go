@@ -56,13 +56,13 @@ func init() {
 					ctx.Event.UserID,      // 要禁言的人的qq
 					(rand.Int63n(5)+1)*60, // 要禁言的时间
 				)
-			// case rand.Intn(11) < 3:
-			// 	ctx.SendChain(randText(
-			// 		"大坏蛋，吃"+nickname+"一拳!",
-			// 		nickname+"生气了！ヾ(≧へ≦)〃",
-			// 		"来自"+nickname+"对大坏蛋的反击!",
-			// 	))
-			// 	ctx.Send(message.Poke(ctx.Event.UserID))
+			case rand.Intn(11) < 3:
+				ctx.SendChain(randText(
+					"大坏蛋，吃"+nickname+"一拳!",
+					nickname+"生气了！ヾ(≧へ≦)〃",
+					"来自"+nickname+"对大坏蛋的反击!",
+				))
+				ctx.Send(message.Poke(ctx.Event.UserID))
 			default:
 				ctx.SendChain(randText(
 					"捏"+nickname+"的人是大坏蛋！",
@@ -92,20 +92,16 @@ func init() {
 		raw := ctx.Event.Message.CQString()
 		r, ok := sm.Load(gid)
 		if !ok || r[3:] != raw {
-			sm.Store(gid, "0: "+raw)
+			sm.Store(gid, "1: "+raw)
 			return
 		}
 		c := int(r[0] - '0')
-		if c == 1 && rand.Intn(100) < 30 {
+		if c%3 == 0 && rand.Intn(100) < 20 {
 			c += 1
 			ctx.SendChain(message.ParseMessageFromString(raw)...)
 		}
-		if c < 3 {
-			sm.Store(gid, strconv.Itoa(c+1)+": "+raw)
-			return
-		}
-		sm.Delete(gid)
-		if rand.Intn(100) < 50 {
+		sm.Store(gid, strconv.Itoa(c+1)+": "+raw)
+		if c == 5 && rand.Intn(100) < 40 {
 			filepath := file.BOTPATH + "/" + engine.DataFolder() + "五时已到.gif"
 			pic, err := os.ReadFile(filepath)
 			if err != nil {
