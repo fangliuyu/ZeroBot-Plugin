@@ -4,6 +4,8 @@ package custom
 import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/yaner" // 自定义人设
 
+	// _ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/setu" // 抽老婆
+
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/score" // 签到
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/custom/plugin/ygo/jihuanshe" // 游戏王插件-集换社

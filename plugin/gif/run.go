@@ -167,11 +167,11 @@ func init() { // 插件主体
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return
 		}
-		data, err := os.ReadFile(picurl)
+		pic, err := os.ReadFile(picurl)
 		if err != nil {
-			ctx.SendChain(message.Text("ERROR: ", err))
+			ctx.SendChain(message.Text("[ERROR]", err))
 			return
 		}
-		ctx.SendChain(message.ImageBytes(data))
+		ctx.SendChain(message.ImageBytes(pic))
 	})
 }

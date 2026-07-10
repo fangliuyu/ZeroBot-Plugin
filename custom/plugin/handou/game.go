@@ -74,7 +74,7 @@ var (
 	idiomFilePath  = file.BOTPATH + "/" + en.DataFolder() + "idiom.json"
 	initialized    = fcext.DoOnceOnSuccess(
 		func(ctx *zero.Ctx) bool {
-			idiomFile, err := en.GetLazyData("idiom.json", true)
+			idiomFile, err := en.GetLazyData("idiom.json", false)
 			if err != nil {
 				ctx.SendChain(message.Text("ERROR: 下载字典时发生错误.\n", err))
 				return false

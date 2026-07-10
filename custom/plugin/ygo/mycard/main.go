@@ -26,6 +26,12 @@ const (
 	myCardPieAPI    = "https://sapi.moecube.com:444/ygopro/analytics/deck/type?type=%v&source=mycard-%v"
 	myCardPlayerAPI = "https://sapi.moecube.com:444/ygopro/arena/user?username="
 	ua              = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
+	width           = 680
+	height          = 600
+	radius          = 200
+	Label1Size      = 18 // 第一行文字大小（标签名）
+	Label2Size      = 12 // 第二行文字大小（数值和百分比）
+	TitleSize       = 24 // 标题大小
 )
 
 type myCardData []struct {
@@ -70,6 +76,12 @@ type playerData struct {
 	AthleticAll      int    `json:"athletic_all"`
 	AthleticWlRatio  string `json:"athletic_wl_ratio"`
 	ArenaRank        int    `json:"arena_rank"`
+}
+
+// 存储每个标签的位置和尺寸信息，用于避免重叠
+type labelInfo struct {
+	labelX, labelY float64
+	width, height  float64
 }
 
 var (
@@ -181,7 +193,7 @@ func calculatePieData(data myCardData) ([]pieData, int) {
 		if err != nil {
 			continue
 		}
-		if i < 9 {
+		if i < 10 {
 			// 只取前10个数据
 			pieDatas = append(pieDatas, pieData{
 				label: d.Name,
@@ -200,12 +212,6 @@ func calculatePieData(data myCardData) ([]pieData, int) {
 }
 
 func generatePieChart(pieDatas []pieData, typ, source string, total int) ([]byte, error) {
-	const (
-		width  = 680
-		height = 600
-		radius = 200
-	)
-
 	canvas := gg.NewContext(width, height)
 	canvas.SetRGB(1, 1, 1) // 背景色为白色
 	canvas.Clear()
@@ -214,12 +220,11 @@ func generatePieChart(pieDatas []pieData, typ, source string, total int) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	if err = canvas.ParseFontFace(font, 12); err != nil {
-		return nil, err
-	}
 
 	startAngle := -math.Pi / 2 // 从顶部开始绘制
-	lastLabelY := -1.0
+
+	var labels []labelInfo
+
 	for i, d := range pieDatas {
 		percentage := float64(d.value) / float64(total)
 		angle := percentage * 2 * math.Pi
@@ -233,28 +238,159 @@ func generatePieChart(pieDatas []pieData, typ, source string, total int) ([]byte
 		midAngle := startAngle + angle/2
 		labelX := width/2 + (radius+65)*math.Cos(midAngle)
 		labelY := height/2 + (radius+20)*math.Sin(midAngle)
-		// 防止标签重叠
-		if math.Abs(labelY-lastLabelY) < 15 {
-			if labelY > lastLabelY {
-				labelY += 15
-			} else {
-				labelY -= 15
-			}
+
+		// 分别测量两行文字的尺寸（使用不同字体大小）
+		// 第一行文字
+		if err = canvas.ParseFontFace(font, Label1Size); err != nil {
+			return nil, err
 		}
-		lastLabelY = labelY
-		labelText := fmt.Sprintf("%s: %d (%.2f%%)", d.label, d.value, percentage*100)
+		w1, h1 := canvas.MeasureString(d.label)
+
+		// 第二行文字
+		if err = canvas.ParseFontFace(font, Label2Size); err != nil {
+			return nil, err
+		}
+		labelText2 := fmt.Sprintf("%d (%.2f%%)", d.value, percentage*100)
+		w2, h2 := canvas.MeasureString(labelText2)
+
+		// 计算整体标签尺寸
+		labelWidth := math.Max(w1, w2)
+		labelHeight := h1 + h2 // 两行间距8px
+
+		// 调整位置避免重叠
+		adjustedX, adjustedY := adjustLabelPosition(labelX, labelY, labelWidth, labelHeight, labels, width, height)
+
+		// 存储标签信息
+		labels = append(labels, labelInfo{
+			labelX: adjustedX,
+			labelY: adjustedY,
+			width:  labelWidth,
+			height: labelHeight,
+		})
+
+		// 绘制第一行文字（标签名）- 较大字体
+		if err = canvas.ParseFontFace(font, Label1Size); err != nil {
+			return nil, err
+		}
 		canvas.SetRGB(0, 0, 0) // 黑色文字
-		canvas.DrawStringAnchored(labelText, labelX, labelY, 0.5, 0.5)
+		canvas.DrawStringAnchored(d.label, adjustedX, adjustedY, 0.5, 0)
+
+		// 绘制第二行文字（数值和百分比）- 较小字体
+		if err = canvas.ParseFontFace(font, Label2Size); err != nil {
+			return nil, err
+		}
+		canvas.DrawStringAnchored(labelText2, adjustedX, adjustedY+h1, 0.5, 0)
 
 		startAngle += angle
 	}
-	if err = canvas.ParseFontFace(font, 24); err != nil {
+
+	// 绘制标题（使用标题字体大小）
+	if err = canvas.ParseFontFace(font, TitleSize); err != nil {
 		return nil, err
 	}
 	_, textH := canvas.MeasureString("M")
 	canvas.DrawStringAnchored("MyCard "+typ+source+"饼图", float64(width)/2, 10+textH, 0.5, 0.5)
+
+	// 绘制时间（使用较小的字体）
+	if err = canvas.ParseFontFace(font, Label2Size); err != nil {
+		return nil, err
+	}
 	canvas.DrawStringAnchored("获取时间: "+time.Now().Format("2006-01-02 15:04:05"), float64(width)/2, float64(height)-10-textH, 0.5, 0.5)
+
 	// 生成图片
 	return imgfactory.ToBytes(canvas.Image())
+}
 
+// 调整标签位置避免重叠
+func adjustLabelPosition(x, y, width, height float64, existingLabels []labelInfo, canvasWidth, canvasHeight float64) (float64, float64) {
+	const padding = 5.0
+
+	// 计算标签的边界框
+	left := x - width/2
+	right := x + width/2
+	top := y
+	bottom := y + height
+
+	// 检查边界，确保在画布内
+	if left < padding {
+		x = padding + width/2
+	}
+	if right > float64(canvasWidth)-padding {
+		x = float64(canvasWidth) - padding - width/2
+	}
+	if top < padding {
+		y = padding
+	}
+	if bottom > float64(canvasHeight)-padding {
+		y = float64(canvasHeight) - padding - height
+	}
+
+	// 重新计算边界框
+	left = x - width/2
+	right = x + width/2
+	top = y
+	bottom = y + height
+
+	// 检查与其他标签的重叠
+	maxIterations := 50
+	for range maxIterations {
+		overlap := false
+
+		for _, existing := range existingLabels {
+			existingLeft := existing.labelX - existing.width/2
+			existingRight := existing.labelX + existing.width/2
+			existingTop := existing.labelY
+			existingBottom := existing.labelY + existing.height
+
+			// 检查矩形重叠
+			if !(right < existingLeft || left > existingRight || bottom < existingTop || top > existingBottom) {
+				// 有重叠，调整位置
+				overlap = true
+
+				// 计算移动方向（优先垂直移动）
+				centerY := (top + bottom) / 2
+				existingCenterY := (existingTop + existingBottom) / 2
+
+				if centerY < existingCenterY {
+					// 向上移动
+					newY := existingTop - height - padding
+					if newY < padding {
+						// 如果向上会超出边界，改为向下移动
+						newY = existingBottom + padding
+					}
+					y = newY
+				} else {
+					// 向下移动
+					newY := existingBottom + padding
+					if newY+height > float64(canvasHeight)-padding {
+						// 如果向下会超出边界，改为向上移动
+						newY = existingTop - height - padding
+						if newY < padding {
+							// 如果向上也会超出，则水平移动
+							if x < existing.labelX {
+								x = existingLeft - width/2 - padding
+							} else {
+								x = existingRight + width/2 + padding
+							}
+							// 重置Y位置
+							y = existing.labelY
+							continue
+						}
+					}
+					y = newY
+				}
+
+				// 重新计算当前标签的边界框
+				top = y
+				bottom = y + height
+				break
+			}
+		}
+
+		if !overlap {
+			break
+		}
+	}
+
+	return x, y
 }

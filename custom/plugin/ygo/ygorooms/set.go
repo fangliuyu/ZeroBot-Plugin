@@ -90,16 +90,18 @@ func init() {
 		}
 		roomname := []string{}
 		name := ""
-		if roomData.Info != "" {
-			if strings.Contains(roomData.Info, "#") {
-				data := strings.SplitN(roomData.Info, "#", 2)
-				roomname = append(roomname, strings.Split(data[0], ",")...)
-				name = data[1]
-			}
-		}
 		if name == "" {
 			for _, v := range ctx.State["args"].([]string) {
 				name += v
+			}
+		}
+		if name == "" && roomData != (dbData{}) {
+			if roomData.Info != "" {
+				if strings.Contains(roomData.Info, "#") {
+					data := strings.SplitN(roomData.Info, "#", 2)
+					roomname = append(roomname, strings.Split(data[0], ",")...)
+					name = data[1]
+				}
 			}
 		}
 		if name == "" {
