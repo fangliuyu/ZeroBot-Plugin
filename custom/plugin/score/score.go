@@ -36,7 +36,8 @@ import (
 	"github.com/FloatTech/floatbox/file"
 	"github.com/FloatTech/floatbox/web"
 	"github.com/FloatTech/gg"
-	"github.com/FloatTech/imgfactory"
+	"github.com/FloatTech/gg/factory"
+	"github.com/FloatTech/gg/fio"
 	"github.com/FloatTech/zbputils/img/text"
 
 	"golang.org/x/image/webp"
@@ -205,7 +206,7 @@ func init() {
 			ctx.SendChain(message.Text(syncerr.Error()))
 			return
 		}
-		back, err := gg.LoadImage(userinfo.Picname)
+		back, err := fio.LoadImage(userinfo.Picname)
 		if err != nil {
 			fileData, err := os.ReadFile(userinfo.Picname)
 			if err != nil {
@@ -474,13 +475,13 @@ func drawImage(userinfo *userdata, score, add int, back image.Image) (img_byte [
 	imgDW := backDX - 100
 	scale := float64(imgDW) / float64(imgDX)
 	imgDH := int(float64(imgDY) * scale)
-	back = imgfactory.Size(back, imgDW, imgDH).Image()
+	back = factory.Size(back, imgDW, imgDH).Image()
 
 	backDY := imgDH + 500 + 10 + 50 + 10
 	canvas := gg.NewContext(backDX, backDY)
 	// 放置毛玻璃背景
 	backBlurW := float64(imgDW) * (float64(backDY) / float64(imgDH))
-	canvas.DrawImageAnchored(imaging.Blur(imgfactory.Size(back, int(backBlurW), backDY).Image(), 8), backDX/2, backDY/2, 0.5, 0.5)
+	canvas.DrawImageAnchored(imaging.Blur(factory.Size(back, int(backBlurW), backDY).Image(), 8), backDX/2, backDY/2, 0.5, 0.5)
 	canvas.DrawRectangle(1, 1, float64(backDX), float64(backDY))
 	canvas.SetLineWidth(3)
 	canvas.SetRGBA255(255, 255, 255, 100)
@@ -503,7 +504,7 @@ func drawImage(userinfo *userdata, score, add int, back image.Image) (img_byte [
 	if err != nil {
 		return
 	}
-	avatarf := imgfactory.Size(avatar, 270, 270)
+	avatarf := factory.Size(avatar, 270, 270)
 	canvas.DrawCircle(50+float64(avatarf.W())/2, 50+float64(avatarf.H())/2, float64(avatarf.W())/2+2)
 	canvas.SetLineWidth(3)
 	canvas.SetDash()
@@ -633,7 +634,7 @@ func drawImage(userinfo *userdata, score, add int, back image.Image) (img_byte [
 	// 放置图片
 	canvas.DrawImageAnchored(back, backDX/2, imgDH/2+475, 0.5, 0.5)
 	// 生成图片
-	return imgfactory.ToBytes(canvas.Image())
+	return factory.ToBytes(canvas.Image())
 }
 
 func drawYHImage(userinfo *userdata, score, add int, back image.Image) (img_byts []byte, err error) {
@@ -659,11 +660,11 @@ func drawYHImage(userinfo *userdata, score, add int, back image.Image) (img_byts
 	// 计算头像的宽高
 	aw, ah := (ch-sch)/2/2/2*3, (ch-sch)/2/2/2*3
 
-	colors := gg.TakeColor(back, 3)
+	colors := gg.TakeThemeColorsKMeans(back, 3)
 	canvas.SetColor(colors[0])
 	canvas.Clear()
 
-	back = imgfactory.Limit(back, canvasWidth*6/10, canvasHeight*8/10)
+	back = factory.Limit(back, canvasWidth*6/10, canvasHeight*8/10)
 
 	var blurback, backshadowimg, avatarimg, avatarbackimg, avatarshadowimg, whitetext, blacktext, linearGradient image.Image
 	wg := &sync.WaitGroup{}
@@ -774,7 +775,7 @@ func drawYHImage(userinfo *userdata, score, add int, back image.Image) (img_byts
 	canvas.DrawImage(whitetext, 0, 0) // 白色文字
 
 	// 生成图片
-	return imgfactory.ToBytes(canvas.Image())
+	return factory.ToBytes(canvas.Image())
 }
 
 // 将图片缩放到指定宽度（保持比例）

@@ -18,7 +18,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	"github.com/FloatTech/gg"
-	"github.com/FloatTech/imgfactory"
+	"github.com/FloatTech/gg/factory"
 	"github.com/FloatTech/zbputils/img/text"
 )
 
@@ -298,7 +298,7 @@ func generatePieChart(pieDatas []pieData, typ, source string, total int) ([]byte
 	canvas.DrawStringAnchored("获取时间: "+time.Now().Format("2006-01-02 15:04:05"), float64(width)/2, float64(height)-10-textH, 0.5, 0.5)
 
 	// 生成图片
-	return imgfactory.ToBytes(canvas.Image())
+	return factory.ToBytes(canvas.Image())
 }
 
 // 调整标签位置避免重叠

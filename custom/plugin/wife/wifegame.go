@@ -28,7 +28,7 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	zbmath "github.com/FloatTech/floatbox/math"
-	"github.com/FloatTech/imgfactory"
+	"github.com/FloatTech/gg/factory"
 	trshttp "github.com/fumiama/terasu/http"
 )
 
@@ -128,7 +128,7 @@ func init() {
 			ctx.SendChain(message.Text("[猜老婆]error:\n", err))
 			return
 		}
-		dst := imgfactory.Size(img, img.Bounds().Dx(), img.Bounds().Dy())
+		dst := factory.Size(img, img.Bounds().Dx(), img.Bounds().Dy())
 		q, err := mosaic(dst, class)
 		if err != nil {
 			ctx.SendChain(
@@ -388,9 +388,9 @@ func updateNativeCards() error {
 // }
 
 // 马赛克生成
-func mosaic(dst *imgfactory.Factory, level int) ([]byte, error) {
+func mosaic(dst *factory.Factory, level int) ([]byte, error) {
 	b := dst.Image().Bounds()
-	p := imgfactory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255})
+	p := factory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255})
 	markSize := zbmath.Max(b.Max.X, b.Max.Y) * sizeList[level] / 200
 
 	for yOfMarknum := 0; yOfMarknum <= zbmath.Ceil(b.Max.Y, markSize); yOfMarknum++ {
@@ -406,5 +406,5 @@ func mosaic(dst *imgfactory.Factory, level int) ([]byte, error) {
 			}
 		}
 	}
-	return imgfactory.ToBytes(p.Blur(3).Image())
+	return factory.ToBytes(p.Blur(3).Image())
 }

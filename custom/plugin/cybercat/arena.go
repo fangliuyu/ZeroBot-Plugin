@@ -12,7 +12,7 @@ import (
 
 	"github.com/FloatTech/floatbox/file"
 	zbpmath "github.com/FloatTech/floatbox/math"
-	"github.com/FloatTech/imgfactory"
+	"github.com/FloatTech/gg/factory"
 	"github.com/FloatTech/rendercard"
 	"github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
@@ -269,7 +269,7 @@ func init() {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return
 		}
-		sendimg, err := imgfactory.ToBytes(img)
+		sendimg, err := factory.ToBytes(img)
 		if err != nil {
 			ctx.SendChain(message.Text("ERROR: ", err))
 			return

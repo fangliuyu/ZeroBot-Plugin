@@ -16,7 +16,6 @@ import (
 	"github.com/FloatTech/AnimeAPI/wallet"
 	zbmath "github.com/FloatTech/floatbox/math"
 	"github.com/FloatTech/floatbox/process"
-	"github.com/FloatTech/imgfactory"
 	ctrl "github.com/FloatTech/zbpctrl"
 	control "github.com/FloatTech/zbputils/control"
 	"github.com/FloatTech/zbputils/ctxext"
@@ -24,7 +23,8 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/extension/single"
 	"github.com/wdvxdr1123/ZeroBot/message"
 
-	"github.com/FloatTech/gg"
+	"github.com/FloatTech/gg/factory"
+	"github.com/FloatTech/gg/fio"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
@@ -66,7 +66,7 @@ type GameLimit struct {
 
 var (
 	nameList   = []string{"CN卡名", "NW卡名", "MD卡名", "简中卡名", "日文注音", "日文名", "英文名"}
-	processors = []func(*imgfactory.Factory) ([]byte, error){
+	processors = []func(*factory.Factory) ([]byte, error){
 		backPic, mosaic, doublePicture, cutPic, randSet,
 	}
 	gameRoom  sync.Map
@@ -166,7 +166,7 @@ func init() {
 			return
 		}
 		// 对卡图做处理
-		pic, err := gg.LoadImage(picFile)
+		pic, err := fio.LoadImage(picFile)
 		if err != nil {
 			var newPic image.Image
 			for range 3 {
@@ -175,7 +175,7 @@ func init() {
 					continue
 				}
 				data, picFile = drawCard()
-				picImage, err1 := gg.LoadImage(picFile)
+				picImage, err1 := fio.LoadImage(picFile)
 				if err1 == nil {
 					newPic = picImage
 					break
@@ -349,13 +349,13 @@ func init() {
 
 // 随机选择
 func randPicture(pic image.Image, cardType string) ([]byte, error) {
-	dst := imgfactory.Size(pic, pic.Bounds().Dx(), pic.Bounds().Dy())
+	dst := factory.Size(pic, pic.Bounds().Dx(), pic.Bounds().Dy())
 	if strings.Contains(cardType, "灵摆") {
 		dst = dst.Clip(370-29, 358-105, 29, 105)
 	} else {
 		dst = dst.Clip(351-51, 408-108, 51, 108)
 	}
-	dst = imgfactory.Size(dst.Image(), 256*5, 256*5)
+	dst = factory.Size(dst.Image(), 256*5, 256*5)
 	processor := processors[rand.Intn(len(processors))]
 	return processor(dst)
 }
@@ -382,9 +382,9 @@ func colorDiffSquared(c1, c2 color.NRGBA) int {
 }
 
 // 获取黑边
-func backPic(dst *imgfactory.Factory) ([]byte, error) {
+func backPic(dst *factory.Factory) ([]byte, error) {
 	bounds := dst.Image().Bounds()
-	returnpic := imgfactory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255}).Image()
+	returnpic := factory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255}).Image()
 
 	// 避免边界检查
 	maxX := bounds.Max.X - 1
@@ -404,11 +404,11 @@ func backPic(dst *imgfactory.Factory) ([]byte, error) {
 			}
 		}
 	}
-	return imgfactory.ToBytes(returnpic)
+	return factory.ToBytes(returnpic)
 }
 
 // 旋转
-func doublePicture(dst *imgfactory.Factory) ([]byte, error) {
+func doublePicture(dst *factory.Factory) ([]byte, error) {
 	b := dst.Image().Bounds()
 	pic := dst.FlipH().FlipV()
 	for y := b.Min.Y; y <= b.Max.Y; y++ {
@@ -446,11 +446,11 @@ func doublePicture(dst *imgfactory.Factory) ([]byte, error) {
 			}
 		}
 	}
-	return imgfactory.ToBytes(dst.Image())
+	return factory.ToBytes(dst.Image())
 }
 
 // 马赛克
-func mosaic(dst *imgfactory.Factory) ([]byte, error) {
+func mosaic(dst *factory.Factory) ([]byte, error) {
 	b := dst.Image().Bounds()
 	w, h := b.Dx(), b.Dy()
 
@@ -493,11 +493,11 @@ func mosaic(dst *imgfactory.Factory) ([]byte, error) {
 		}
 	}
 
-	return imgfactory.ToBytes(dst.Blur(2).Image())
+	return factory.ToBytes(dst.Blur(2).Image())
 }
 
 // 随机切割
-func cutPic(dst *imgfactory.Factory) ([]byte, error) {
+func cutPic(dst *factory.Factory) ([]byte, error) {
 	indexOfx := rand.Intn(3)
 	indexOfy := rand.Intn(3)
 	indexOfx2 := rand.Intn(3)
@@ -505,7 +505,7 @@ func cutPic(dst *imgfactory.Factory) ([]byte, error) {
 	b := dst.Image()
 	bx := b.Bounds().Max.X / 3
 	by := b.Bounds().Max.Y / 3
-	returnpic := imgfactory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255})
+	returnpic := factory.NewFactoryBG(dst.W(), dst.H(), color.NRGBA{255, 255, 255, 255})
 
 	for yOfMarknum := b.Bounds().Min.Y; yOfMarknum <= b.Bounds().Max.Y; yOfMarknum++ {
 		for xOfMarknum := b.Bounds().Min.X; xOfMarknum <= b.Bounds().Max.X; xOfMarknum++ {
@@ -529,17 +529,17 @@ func cutPic(dst *imgfactory.Factory) ([]byte, error) {
 			}
 		}
 	}
-	return imgfactory.ToBytes(returnpic.Image())
+	return factory.ToBytes(returnpic.Image())
 }
 
 // 乱序
-func randSet(dst *imgfactory.Factory) ([]byte, error) {
+func randSet(dst *factory.Factory) ([]byte, error) {
 	b := dst.Image().Bounds()
 	w, h := b.Max.X, b.Max.Y
 	blockW, blockH := w/3, h/3
 
 	// 创建输出图像
-	returnpic := imgfactory.NewFactoryBG(w, h, color.NRGBA{255, 255, 255, 255})
+	returnpic := factory.NewFactoryBG(w, h, color.NRGBA{255, 255, 255, 255})
 
 	// 生成9个块的随机排列
 	indices := rand.Perm(9)
@@ -578,7 +578,7 @@ func randSet(dst *imgfactory.Factory) ([]byte, error) {
 		}
 	}
 
-	return imgfactory.ToBytes(returnpic.Image())
+	return factory.ToBytes(returnpic.Image())
 }
 
 // 拼接提示词

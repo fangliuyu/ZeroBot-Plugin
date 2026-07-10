@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/FloatTech/imgfactory"
+	"github.com/FloatTech/gg/factory"
 	"github.com/sirupsen/logrus"
 
 	fcext "github.com/FloatTech/floatbox/ctxext"
@@ -504,7 +504,7 @@ func newHandouGame(target idiomJSON) func(string) (bool, []byte, error) {
 			ctx.DrawImageAnchored(v, x, y+hisH/2, 0.5, 0.5)
 		}
 
-		data, err = imgfactory.ToBytes(ctx.Image())
+		data, err = factory.ToBytes(ctx.Image())
 		if len(record) >= cap(record) {
 			err = errTimesRunOut
 			return

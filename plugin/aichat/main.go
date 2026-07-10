@@ -85,7 +85,7 @@ func init() {
 		if !stor.NoAgent() && chat.AC.AgentAPI != "" && chat.AC.AgentModelName != "" && chat.AC.Key != "" {
 			logrus.Debugln("[aichat] enter agent mode")
 			x := deepinfra.NewAPI(chat.AC.AgentAPI, string(chat.AC.AgentKey))
-			mod, err := chat.AC.Type.Protocol(chat.AC.AgentModelName, temperature, topp, maxn)
+			mod, err := chat.AC.Type.Protocol(chat.AC.AgentModelName, temperature, topp, maxn, chat.AC.ReasoningEffort)
 			if err != nil {
 				logrus.Warnln("ERROR: ", err)
 				return
@@ -104,7 +104,7 @@ func init() {
 			ag := chat.AgentOf(ctx.Event.SelfID, c.Service)
 			logrus.Debugln("[aichat] got agent")
 			if chat.AC.ImageAPI != "" && !ag.CanViewImage() {
-				mod, err := chat.AC.ImageType.Protocol(chat.AC.ImageModelName, temperature, topp, maxn)
+				mod, err := chat.AC.ImageType.Protocol(chat.AC.ImageModelName, temperature, topp, maxn, chat.AC.ReasoningEffort)
 				if err != nil {
 					logrus.Warnln("ERROR: ", err)
 					return
@@ -148,7 +148,7 @@ func init() {
 		}
 
 		x := deepinfra.NewAPI(chat.AC.API, string(chat.AC.Key))
-		mod, err := chat.AC.Type.Protocol(chat.AC.ModelName, temperature, topp, maxn)
+		mod, err := chat.AC.Type.Protocol(chat.AC.ModelName, temperature, topp, maxn, chat.AC.ReasoningEffort)
 		if err != nil {
 			logrus.Warnln("ERROR: ", err)
 			return

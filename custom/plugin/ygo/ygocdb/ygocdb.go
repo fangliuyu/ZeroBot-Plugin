@@ -22,7 +22,6 @@ import (
 	"github.com/FloatTech/floatbox/file"
 	zbmath "github.com/FloatTech/floatbox/math"
 	"github.com/FloatTech/floatbox/web"
-	"github.com/FloatTech/imgfactory"
 	sql "github.com/FloatTech/sqlite"
 	ctrl "github.com/FloatTech/zbpctrl"
 	control "github.com/FloatTech/zbputils/control"
@@ -31,6 +30,8 @@ import (
 	"github.com/wdvxdr1123/ZeroBot/message"
 
 	"github.com/FloatTech/gg"
+	"github.com/FloatTech/gg/factory"
+	"github.com/FloatTech/gg/fio"
 	"github.com/FloatTech/zbputils/img/text"
 )
 
@@ -540,7 +541,7 @@ func init() {
 			canvas.SetLineWidth(2.5)
 			canvas.Stroke()
 		}
-		data, err = imgfactory.ToBytes(canvas.Image())
+		data, err = factory.ToBytes(canvas.Image())
 		if err != nil {
 			ctx.SendChain(message.Text("[qqwife]ERROR: ", err))
 			return
@@ -757,11 +758,11 @@ func (cdb *ygoDB) findAllData() (dbInfos []*subscribe, err error) {
 // 绘制图片
 func drawimage(info cardInfo) (data []byte, err error) {
 	// 卡图大小
-	cardPic, err := gg.LoadImage(cachePath + strconv.Itoa(info.ID) + ".jpg")
+	cardPic, err := fio.LoadImage(cachePath + strconv.Itoa(info.ID) + ".jpg")
 	if err != nil {
 		return nil, err
 	}
-	cardPic = imgfactory.Size(cardPic, 400, 580).Image()
+	cardPic = factory.Size(cardPic, 400, 580).Image()
 	picx := cardPic.Bounds().Dx()
 	picy := cardPic.Bounds().Dy()
 
@@ -881,6 +882,6 @@ func drawimage(info cardInfo) (data []byte, err error) {
 	// 放置效果
 	canvas.DrawImage(textPic, 10, h+10)
 	// 生成图片
-	data, err = imgfactory.ToBytes(canvas.Image())
+	data, err = factory.ToBytes(canvas.Image())
 	return
 }
